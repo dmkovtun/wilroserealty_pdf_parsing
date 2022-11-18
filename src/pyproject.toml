@@ -5,7 +5,7 @@ description = "Project for custom xlsx file enrichment"
 authors = ["Dmytro Kovtun"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = ">3.8.1"
 black = "^22.8.0"
 PyPDF2 = "^2.11.1"
 slate3k = "^0.5.3"
@@ -22,6 +22,7 @@ google-auth-httplib2 = "^0.1.0"
 google-auth-oauthlib = "^0.7.1"
 python-dotenv = "^0.21.0"
 playwright = "^1.28.0"
+pypdfium2 = "^3.8.0"
 
 [tool.poetry.dev-dependencies]
 
