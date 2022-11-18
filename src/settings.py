@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BOT_NAME = "YOUR_PROJECT_NAME"
+BOT_NAME = "pdf_excel_parser"
 
 SPIDER_MODULES = ["spiders"]
 NEWSPIDER_MODULE = "spiders"
@@ -122,3 +122,16 @@ STORAGE_DIR = 'D:/upwork/wilroserealty_pdf_parsing/temp'
 
 
 logging.getLogger('googleapiclient.discovery_cache').setLevel('WARN')
+
+
+# TODO README
+# pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
+from os import getcwd
+from os.path import join
+
+
+POPPLER_PATH=join(getcwd(),'../packages/poppler-0.68.0/bin')
+TESSERACT_PATH = join(getcwd(),"../packages/Tesseract-OCR/tesseract.exe")
+
+TEMP_DIR_PATH = join(getcwd(),"../temp/pdf_parts")
+
