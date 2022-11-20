@@ -3,7 +3,7 @@ from enum import Enum
 
 class CaseStatus(Enum):
 
-    dismissed = "DISMISSED"
-    active = "ACTIVE"
+    dismissed = "Dismissed"
+    active = "Active"
     processing_failed = "PROCESSING_FAILED"
     not_processed = "NOT_PROCESSED"
