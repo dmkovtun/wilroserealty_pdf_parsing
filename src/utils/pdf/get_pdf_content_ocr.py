@@ -36,7 +36,7 @@ settings = get_project_settings()
 
 POPPLER_PATH = settings.get("POPPLER_PATH")
 TESSERACT_PATH = settings.get("TESSERACT_PATH")
-TEMP_DIR_PATH = str(settings.get("TEMP_DIR_PATH"))
+PDF_TEMP_DIR_PATH = str(settings.get("PDF_TEMP_DIR_PATH"))
 
 
 if os.name == "nt":
@@ -67,7 +67,7 @@ def _process_scanned_pdf(filename: str) -> Iterator[str]:
         for j, (name, raw_image) in enumerate(page.images.items()):
             image = PdfImage(raw_image)
             fname = f"{filename}-page{i:03}-img{j:03}"
-            file_path = join(TEMP_DIR_PATH, 'pdf_parts', fname)
+            file_path = join(PDF_TEMP_DIR_PATH, fname)
             file_path = image.extract_to(fileprefix=file_path)
 
             denoised_image = _denoise_image(file_path)
