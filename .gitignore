@@ -2,8 +2,6 @@
 **/venv
 .env
 token.json
-
 /.vscode
-
-
 __pycache__
+*.log
