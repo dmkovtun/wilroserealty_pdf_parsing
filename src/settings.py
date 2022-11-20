@@ -5,6 +5,8 @@ import os
 from datetime import datetime, timedelta
 from distutils.util import strtobool
 from typing import Dict
+from os import getcwd
+from os.path import join
 
 from scrapy.utils.log import configure_logging
 from dotenv import load_dotenv
@@ -39,9 +41,9 @@ TELNETCONSOLE_PASSWORD = "password"
 DEFAULT_REQUEST_HEADERS = {
     "Accept-Language": "en-US,en;q=0.5",
     "Cache-Control": "max-age=0",
-    'Connection': 'keep-alive',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Accept': '*/*'
+    "Connection": "keep-alive",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Accept": "*/*",
 }
 
 ROTATING_PROXIES_DOWNLOADER_HANDLER_AUTO_CLOSE_CACHED_CONNECTIONS_ENABLED: bool = True
@@ -57,20 +59,22 @@ logging.getLogger("rmq.utils.decorators.log_current_thread").setLevel(LOG_LEVEL)
 
 ITEM_PIPELINES: Dict[str, int] = {}
 
-DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT = int(os.getenv("DB_PORT", "3306"))
-DB_USERNAME = os.getenv("DB_USERNAME", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
-DB_DATABASE = os.getenv("DB_DATABASE", "db_name")
+# DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+# DB_PORT = int(os.getenv("DB_PORT", "3306"))
+# DB_USERNAME = os.getenv("DB_USERNAME", "root")
+# DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+# DB_DATABASE = os.getenv("DB_DATABASE", "db_name")
 
-PIKA_LOG_LEVEL = os.getenv("PIKA_LOG_LEVEL", "WARN")
-logging.getLogger("pika").setLevel(PIKA_LOG_LEVEL)
-logging.getLogger("rmq.connections.pika_select_connection").setLevel(PIKA_LOG_LEVEL)
-logging.getLogger("PIL.PngImagePlugin").setLevel(PIKA_LOG_LEVEL)
+# PIKA_LOG_LEVEL = os.getenv("PIKA_LOG_LEVEL", "WARN")
+# logging.getLogger("pika").setLevel(PIKA_LOG_LEVEL)
+# logging.getLogger("rmq.connections.pika_select_connection").setLevel(PIKA_LOG_LEVEL)
+# logging.getLogger("PIL.PngImagePlugin").setLevel(PIKA_LOG_LEVEL)
 
 
-COOKIES_ENABLED=True
-COOKIES_DEBUG=True
+# COOKIES_ENABLED = True
+# COOKIES_DEBUG = True
+
+PLAYWRIGHT_HEADLESS = bool(strtobool(os.getenv("PLAYWRIGHT_HEADLESS", "True")))
 
 
 try:
@@ -78,9 +82,7 @@ try:
 except ValueError:
     HTTPCACHE_ENABLED = False
 
-HTTPCACHE_IGNORE_HTTP_CODES = list(
-    map(int, (s for s in os.getenv("HTTPCACHE_IGNORE_HTTP_CODES", "").split(",") if s))
-)
+HTTPCACHE_IGNORE_HTTP_CODES = list(map(int, (s for s in os.getenv("HTTPCACHE_IGNORE_HTTP_CODES", "").split(",") if s)))
 
 EXTENSIONS = {}
 
@@ -97,41 +99,32 @@ if IS_SENTRY_ENABLED:
     EXTENSIONS["scrapy_sentry_sdk.extensions.SentryLogging"] = 1
 
 configure_logging()
-if (
-    datetime(*[int(number) for number in USER_AGENT_RELEASE_DATE.split("-")])
-    + timedelta(days=180)
-    < datetime.now()
-):
+if datetime(*[int(number) for number in USER_AGENT_RELEASE_DATE.split("-")]) + timedelta(days=180) < datetime.now():
     logging.warning("USER_AGENT is outdated")
 
 
-
-
+def _process_relative_path(path: str):
+    if "../" in path:
+        return join(getcwd(), path)
+    return path
 
 
 # Google Sheets API
-TOKEN_PATH = "D:/upwork/wilroserealty_pdf_parsing/token.json"
-CREDENTIALS_PATH = "D:/upwork/wilroserealty_pdf_parsing/credentials.json"
-
-STORAGE_DIR = 'D:/upwork/wilroserealty_pdf_parsing/temp'
-
+CREDENTIALS_PATH = _process_relative_path(os.getenv("CREDENTIALS_PATH", "../credentials"))
+TOKEN_PATH = join(CREDENTIALS_PATH, "token.json")
+CREDENTIALS_PATH = join(CREDENTIALS_PATH, "credentials.json")
 
 
-
-
-
-
-logging.getLogger('googleapiclient.discovery_cache').setLevel('WARN')
+logging.getLogger("googleapiclient.discovery_cache").setLevel("WARN")
+logging.getLogger("googleapiclient.discovery").setLevel("INFO")
+logging.getLogger("asyncio").setLevel("INFO")
 
 
 # TODO README
 # pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
-from os import getcwd
-from os.path import join
 
 
-POPPLER_PATH=join(getcwd(),'../packages/poppler-0.68.0/bin')
-TESSERACT_PATH = join(getcwd(),"../packages/Tesseract-OCR/tesseract.exe")
-
-TEMP_DIR_PATH = join(getcwd(),"../temp/pdf_parts")
-
+POPPLER_PATH = _process_relative_path(os.getenv("POPPLER_PATH", "../packages/poppler-0.68.0/bin"))
+TESSERACT_PATH = _process_relative_path(os.getenv("TESSERACT_PATH", "../packages/Tesseract-OCR/tesseract.exe"))
+TEMP_DIR_PATH = _process_relative_path(os.getenv("TEMP_DIR_PATH", "../temp"))
+PDF_TEMP_DIR_PATH = join(TEMP_DIR_PATH, "pdf_parts")
