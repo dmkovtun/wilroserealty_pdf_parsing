@@ -2,23 +2,23 @@ import json
 import logging
 from typing import Iterator, List
 
-from scrapy.commands import ScrapyCommand
-from scrapy.utils.log import configure_logging
 from scrapy.utils.project import get_project_settings
-from twisted.internet import defer, reactor
+from twisted.internet import defer, reactor, threads
+from twisted.internet.defer import inlineCallbacks, returnValue
 from commands.base.base_command import BaseCommand
-from commands.base.base_reactor_command import BaseReactorCommand
+from spiders.pw_status_check_spider import PWStatusCheckSpider
 from spiders.case_status_spider import CaseStatusSpider
 from utils.case import Case
 from utils.case_status import CaseStatus
+import pandas as pd
+from utils.get_parsed_address import get_parsed_address
 
 from utils.google_sheets.google_sheets_client import GoogleSheetsClient
 from twisted.internet.error import ReactorNotRunning
 from scrapy.utils.project import get_project_settings
-from utils.pdf.get_pdf_content import get_pdf_content
 
-from utils.pdf.get_pdf_content_ocr import _process_scanned_pdf, get_pdf_content_ocr
-from utils.pdf.is_text_file import is_text_file
+
+from utils.pdf.get_pdf_content_ocr import get_pdf_content_ocr
 import re
 
 
@@ -29,17 +29,12 @@ class EnrichSpreadsheet(BaseCommand):
         super().__init__()
         self.project_settings = get_project_settings()
         self.logger = logging.getLogger(self.__class__.__name__)
-        # self.db_connection_pool = None
+        self.sheets_process: GoogleSheetsClient
 
-    def set_logger(self, name: str = "COMMAND", level: str = "DEBUG"):
-        self.logger = logging.getLogger(name=name)
-        self.logger.setLevel(level)
-        configure_logging()
-
-    # def execute(self, _args, opts):
-    # self.init_db_connection_pool()
-    # d = self.db_connection_pool.runInteraction(self._add_accounts)
-    # d.addCallback(self._after_import).addErrback(self._errback)
+    def init(self):
+        """Init method for all resource-consuming things"""
+        settings = self.settings
+        self.sheets_process = GoogleSheetsClient(settings.get("TOKEN_PATH"), settings.get("CREDENTIALS_PATH"))
 
     def _exit(self, _result=None):
         print("Name Combination search queries generation has been completed")
@@ -59,16 +54,13 @@ class EnrichSpreadsheet(BaseCommand):
         #     default="",
         # )
 
-    def _after_import(self, transaction):
-        self.logger.info("FINISHED")
-
     def load_cases(self):
-        settings = self.settings
-        sheets_process = GoogleSheetsClient(settings.get("TOKEN_PATH"), settings.get("CREDENTIALS_PATH"))
+        sheets_process = self.sheets_process
 
         cases: List[Case] = []
 
         # TODO MAKE THIS NOT HARDCODED???
+        case_numbers_list = sheets_process.load_all_rows_from_name("Case No")
         case_link_list = sheets_process.load_all_rows_from_name("[URL] Case Link")
         attorney_list = sheets_process.load_all_rows_from_name("[URL] Attorneys")
         petition_list = sheets_process.load_all_rows_from_name("[URL] Petition")
@@ -78,7 +70,8 @@ class EnrichSpreadsheet(BaseCommand):
         top_twenty_list = sheets_process.load_all_rows_from_name("[URL] Top Twenty")
 
         row_number = 2  # Header skipped
-        for (case_link, attorney, petition, schedule_a_b, schedule_d, schedule_e_f, top_twenty) in zip(
+        for (case_number, case_link, attorney, petition, schedule_a_b, schedule_d, schedule_e_f, top_twenty) in zip(
+            case_numbers_list,
             case_link_list,
             attorney_list,
             petition_list,
@@ -88,92 +81,99 @@ class EnrichSpreadsheet(BaseCommand):
             top_twenty_list,
         ):
             cases.append(
-                Case(row_number, case_link, attorney, petition, schedule_a_b, schedule_d, schedule_e_f, top_twenty)
+                Case(
+                    row_number,
+                    case_number,
+                    case_link,
+                    attorney,
+                    petition,
+                    schedule_a_b,
+                    schedule_d,
+                    schedule_e_f,
+                    top_twenty,
+                )
             )
             row_number += 1
         return cases
 
-    # @defer.inlineCallbacks
-    def run(self, args, opts):
-        self.args = args
-        self.opts = opts
-
-        is_load_cases = False
-        if is_load_cases:
-            cases = self.load_cases()
-
-            self.logger.info(len(cases))
-            # TODO REMOVE
-            cases = cases[:1]
-
-        self.logger.info("Starting processing case statuses")
-
-        # .addCallback(self.save_cases,cases)
-        # self.crawler_process.start(stop_after_crawl)
-        #
-        # self.crawler_process.join()  # type: ignore
-
-        # self.cases.extend(chunked_cases)
-
+    @inlineCallbacks
+    def check_status_pw(self, case):
         # Google Sheet enrichment process in steps:
         # 1. Status value checking:
         # ~ 1.1 Check file from 'Case Link' (column A):
         # - If pdf contains 'dismissed' in top right corner - status should be set as 'Dismissed'. CONTINUE processing this row.
         # - Else: continue processing, status 'Active'
+        self.logger.info(f"Case {case.case_number}: Starting PW case status checking")
+        spider = PWStatusCheckSpider()
+        try:
+            d = threads.deferToThread(spider.get_page_html_playwright, case.url_case_link, [".card-header"])
+            full_html = yield d
 
-        # for case in cases:
+            is_dismissed = spider.check_is_dismissed(full_html)
+            case.case_status = CaseStatus.dismissed if is_dismissed else CaseStatus.active
+            fd = threads.deferToThread(spider.download_file_pw, case, "url_attorney")
+            filename = yield fd
+            case.files["url_attorney"] = filename
+        except Exception as err:
+            self.logger.error(f"Case {case.case_number}: Got an error while enriching case: {str(err)}")
+            case.case_status = CaseStatus.processing_failed
+            # No need to process more
 
-        # reactor.run()
-        # runner.crawl(MySpider1)
-        # runner.crawl(MySpider2)
-        # d = self.crawler_process.join()
+        return case
 
-        # d.addErrback(lambda _: reactor.stop())
-        # return d
-        # reactor.run() # the script will block here until all crawling jobs are finished
+    def run(self, args, opts):
+        self.args = args
+        self.opts = opts
 
-        # reactor.callFromThread(self.execute, args, opts)
-        # reactor.callFromThread(d)
-        # reactor.callFromThread(reactor.stop)
+        cases: List[Case] = self.load_cases()
+
+        self.logger.info(f"Received {len(cases)} cases from Google Sheet")
+        # TODO REMOVE, DEBUG ONLY
+        # cases = cases[:5]
+
+        self.logger.info("Starting processing case statuses")
 
         # TODO UNCOMMENT
-        # self.run_status_checks(cases)
-        # reactor.run()
-        # self.logger.info("SAVED CASES TO FILE")
-        # self.save_cases(cases)
-        # self.logger.info(cases)
-        #
+        self.run_status_checks(cases)
+        reactor.run()
 
-        # cases = json.loads(''.join(inp.readlines()))
-        # cases = [Case.from_dict(c) for c in cases]
-        cases = [
-            Case(
-                2,
-                "https://www.inforuptcy.com/filings/cacbke_1942604",
-                "https://www.inforuptcy.com/attorneys/export-csv/cacbke_1942604",
-                "https://www.inforuptcy.com/ir-documentselect/download_pdf/docket/cacbke_1942604/1/1",
-                "https://pdf.inforuptcy.com/pacer/cacbke/1942604/schedule-forms/ab-0B9EC878-A4FA-11EC-9453-2161FAA6289E?filename=schedule_ab.pdf",
-                "https://pdf.inforuptcy.com/pacer/cacbke/1942604/schedule-forms/d-0B40C41C-A4FA-11EC-AF6D-23267CB7F93E?filename=schedule_d.pdf",
-                "https://pdf.inforuptcy.com/pacer/cacbke/1942604/schedule-forms/ef-0B1CA190-A4FA-11EC-A9E4-51F6E80E6D45?filename=schedule_ef.pdf",
-                "",
-            )
-        ]
-        cases[0].files = {
-            "url_attorney": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_attorney\\httpswwwinforuptcycomattorneysexportcsvcacbke1942604.csv",
-            "url_schedule_d": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_schedule_d\\httpspdfinforuptcycompacercacbke1942604scheduleformsd0B40C41CA4FA11ECAF6D23267CB7F93Efilenamescheduledpdf.pdf",
-            "url_schedule_a_b": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_schedule_a_b\\httpspdfinforuptcycompacercacbke1942604scheduleformsab0B9EC878A4FA11EC94532161FAA6289Efilenamescheduleabpdf.pdf",
-            # "url_schedule_a_b": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_schedule_a_b\\schedule_ab.pdf",
-        }
-        cases[0].case_status = CaseStatus.dismissed
+        for c in cases:
+            self.logger.info(f"Case {c.case_number}: value {c.case_status} file {c.files['url_attorney']}")
+        # return
+        # self.save_cases(cases)
+
+        # NOTE: DEBUG ONLY
+        # cases = [
+        #     Case(
+        #         2,
+        #         "https://www.inforuptcy.com/filings/cacbke_1942604",
+        #         "https://www.inforuptcy.com/attorneys/export-csv/cacbke_1942604",
+        #         "https://www.inforuptcy.com/ir-documentselect/download_pdf/docket/cacbke_1942604/1/1",
+        #         "https://pdf.inforuptcy.com/pacer/cacbke/1942604/schedule-forms/ab-0B9EC878-A4FA-11EC-9453-2161FAA6289E?filename=schedule_ab.pdf",
+        #         "https://pdf.inforuptcy.com/pacer/cacbke/1942604/schedule-forms/d-0B40C41C-A4FA-11EC-AF6D-23267CB7F93E?filename=schedule_d.pdf",
+        #         "https://pdf.inforuptcy.com/pacer/cacbke/1942604/schedule-forms/ef-0B1CA190-A4FA-11EC-A9E4-51F6E80E6D45?filename=schedule_ef.pdf",
+        #         "",
+        #     )
+        # ]
+        # cases[0].files = {
+        #     "url_attorney": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_attorney\\httpswwwinforuptcycomattorneysexportcsvcacbke1942604.csv",
+        #     "url_schedule_d": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_schedule_d\\httpspdfinforuptcycompacercacbke1942604scheduleformsd0B40C41CA4FA11ECAF6D23267CB7F93Efilenamescheduledpdf.pdf",
+        #     "url_schedule_a_b": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_schedule_a_b\\httpspdfinforuptcycompacercacbke1942604scheduleformsab0B9EC878A4FA11EC94532161FAA6289Efilenamescheduleabpdf.pdf",
+        #     # "url_schedule_a_b": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_schedule_a_b\\schedule_ab.pdf",
+        # }
+        # cases[0].case_status = CaseStatus.dismissed
 
         for case in cases:
             if case.case_status == CaseStatus.processing_failed:
-                self.logger.debug("Skipped case processing")
+                self.logger.debug("Skipped case processing, but will update status")
+                self.update_case_status(case)
                 continue
             self.process_files(case)
+            # NOTE: For now, cases will not have status updated when error occured
+            self.update_case(case)
 
         # TODO REMOVE THIS
-        self.logger.info(json.dumps([c.__dict__ for c in cases], indent=4, default=str))
+        # self.logger.info(json.dumps([c.__dict__ for c in cases], indent=4, default=str))
         # Required modules:
         # - Google Sheets usage (login, read, edit, save)
         # - Status webpage scraping
@@ -185,52 +185,112 @@ class EnrichSpreadsheet(BaseCommand):
         # reactor.run()
 
     def process_files(self, case: Case):
-
-        file_field_type_mapping = {
-            "url_attorney": "csv",
-            # TODO url_petition
-            "url_schedule_a_b": "pdf",
-            "url_schedule_d": "pdf",
-            "url_schedule_e_f": "pdf",
-            "url_top_twenty": "pdf",
-        }
+        # file_field_type_mapping = {
+        #     "url_attorney": "csv",
+        #     # TODO url_petition
+        #     "url_schedule_a_b": "pdf",
+        #     "url_schedule_d": "pdf",
+        #     "url_schedule_e_f": "pdf",
+        #     "url_top_twenty": "pdf",
+        # }
 
         # 2. Attorney emails fillup (columns AJ, AK)
         # Save only emails. First person - column AJ, others go to AK
         # Get data from column K (Attorneys): it has a csv file inside and contains same emails
-        # attorneys = self.
-        import pandas as pd
+        try:
+            attorney_email, other_attorney_emails = self.attorney_csv_parsing(case)
+            case.enrichable_values["attorney_email"] = attorney_email
+            case.enrichable_values["other_attorney_emails"] = other_attorney_emails
 
-        # Attorney Email
-        # Other Attorney Emails
+            schedule_a_b_data = schedule_a_b_parsing(case.files["url_schedule_a_b"])
+            case.enrichable_values["schedule_a_b_rows"] = schedule_a_b_data
+
+            schedule_d_data = schedule_d_parsing(case.files["url_schedule_d"])
+            case.enrichable_values["schedule_d_rows"] = schedule_d_data
+        except Exception as err:
+            self.logger.error(f"Case {case.case_number}: Failed to process case: {str(err)}")
+            case.case_status = CaseStatus.processing_failed
+
+    def _get_dict_formatted(self, case: Case, field_name: str) -> str:
+        try:
+            dict_data = case.enrichable_values[field_name]
+            return "\n".join([f"{k}: {v}" for k, v in dict_data.items()])
+        except KeyError as ke:
+            return f"Failed to parse due to missing value: {field_name}"
+
+    def _process_addresses(self, case: Case):
+        addresses = [get_parsed_address(v[0]) for k, v in case.enrichable_values["schedule_a_b_rows"].items()]
+        return "\n".join(addresses)
+
+    def _prepare_case_data(self, case: Case) -> List[str]:
+        # "Status","Creditor Notes","Borrower Notes","Property Notes","ADDRESS","Attorney Email","Other Attorney Emails"
+        _mapping = {
+            "Status": case.case_status.value,
+            "Creditor Notes": self._get_dict_formatted(case, "schedule_d_rows"),
+            "Borrower Notes": "UNSUPPORTED",
+            "Property Notes": self._get_dict_formatted(case, "schedule_a_b_rows"),
+            "ADDRESS": self._process_addresses(case),
+            "Attorney Email": case.enrichable_values["attorney_email"],
+            "Other Attorney Emails": case.enrichable_values["other_attorney_emails"],
+        }
+        return [v for k, v in _mapping.items()]
+
+    def update_case(self, case: Case):
+        # Status","Creditor Notes","Borrower Notes","Property Notes","ADDRESS","Attorney Email","Other Attorney Emails
+        self.logger.info(f"Case {case.case_number}: Updating case rows")
+        try:
+            prepared_values = self._prepare_case_data(case)
+            # TODO Ideally somehow define these values
+            start_column = "Status"
+            end_column = "Other Attorney Emails"
+
+            self.sheets_process.update_values(case.case_row_number, start_column, end_column, [prepared_values])
+        except Exception as err:
+            self.logger.error(f"Case {case.case_number}: Failed to prepare case for update: {str(err)}")
+            case.case_status = CaseStatus.processing_failed
+            self.update_case_status(case)
+
+    def update_case_status(self, case: Case):
+        self.logger.info(f"Case {case.case_number}: Updating case status")
+        _mapping = {
+            "Status": case.case_status.value,
+        }
+        prepared_values = [v for k, v in _mapping.items()]
+        start_column = "Status"
+        self.sheets_process.update_values(case.case_row_number, start_column, start_column, [prepared_values])
+
+    def attorney_csv_parsing(self, case: Case) -> tuple:
         data = pd.read_csv(case.files["url_attorney"])
         df = pd.DataFrame(data, columns=["Name", "Email"])
-        # self.logger.info(df)
-        self.logger.info(df["Email"][0])
         try:
-            case.enrichable_values["attorney_email"] = df["Email"][0]
+            attorney_email = df["Email"][0]
         except IndexError:
             self.logger.debug(f"No value for field 'Attorney Email'")
+            attorney_email = ""
         try:
-            case.enrichable_values["other_attorney_emails"] = ", ".join(df["Email"][1:])
+            other_attorney_emails = "\n".join(df["Email"][1:])
         except IndexError:
             self.logger.debug(f"No value for field 'Other Attorney Emails'")
-        # case.enrichable_values["Other Attorney Emails"] = ""
+            other_attorney_emails = ""
+        return attorney_email, other_attorney_emails
 
-        schedule_a_b_data = schedule_a_b_parsing(case.files["url_schedule_a_b"])
-        # self.logger.info(schedule_a_b_data)
-        case.enrichable_values["schedule_a_b_rows"] = schedule_a_b_data
-
-        schedule_d_data = schedule_d_parsing(case.files["url_schedule_d"])
-        case.enrichable_values["schedule_d_rows"] = schedule_d_data
-
-    @defer.inlineCallbacks
+    @defer.inlineCallbacks  # type: ignore
     def run_status_checks(self, cases: List[Case]) -> Iterator[defer.Deferred]:
+        self.crawler_process.crawl(CaseStatusSpider, cases=cases)  # type: ignore
 
-        self.crawler_process.crawl(CaseStatusSpider, cases=cases)
-        yield self.crawler_process.join()
+        case_statuses = []
+
+        def update_case_fields(result: Case, case: Case):
+            # TODO CHECK THIS
+            case.case_status = result.case_status
+            case.files["url_attorney"] = result.files["url_attorney"]
+
+        for case in cases:
+            yield self.check_status_pw(case).addCallback(update_case_fields, case)
+
+        yield self.crawler_process.join()  # type: ignore
         try:
-            reactor.callFromThread(reactor.stop)
+            reactor.callFromThread(reactor.stop)  # type: ignore
         except ReactorNotRunning:
             pass
 
@@ -238,46 +298,8 @@ class EnrichSpreadsheet(BaseCommand):
         with open("output.json", "w", encoding="utf-8") as outp:
             outp.write(json.dumps([c.__dict__ for c in cases], indent=4, default=str))
 
-    def init(self):
-        pass
-
 
 from subprocess import CalledProcessError
-
-# from pdf import *
-
-
-# def extract_table_text(filename):
-#     # !DEPRECATED
-#     from tabula import read_pdf
-
-#     # ,
-
-#     table_pdf = read_pdf(
-#         filename,
-#         guess=False,
-#         pandas_options={"columns": ["column_name", "text_value"]},
-#         pages=[5],
-#         stream=True,
-#         encoding="utf-8",
-#         # (top,left,bottom,right)
-#         area=(96, 5, 558, 350),
-#     )
-
-#     for row in table_pdf:
-#         print(f"TABLE ")
-
-#         import pandas as pd
-
-#         if type(row) is pd.DataFrame:
-
-#             if "55." in str(row):
-#                 # row.columns = ['part_name', 'text']
-#                 # print(f'\n\n{row["name"]}')
-#                 for index, data in row.iterrows():
-#                     print(f"\nindex {index}")
-#                     # v=str(data['text']).replace('\n', '')
-#                     print(f"data:\n{data}")
 
 
 logger = logging.getLogger(__name__)
