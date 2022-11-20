@@ -2,7 +2,7 @@ from __future__ import print_function
 import logging
 
 import os.path
-from typing import Any, List
+from typing import Any, Dict, List
 
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -10,6 +10,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from time import sleep
+
 # TODO
 
 # The ID and range of a sample spreadsheet.
@@ -22,7 +23,7 @@ class GoogleSheetsClient:
     token_path: str
     credentials_path: str
     # If modifying these scopes, delete the file token.json.
-    SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+    SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
     spreadsheet_id = "1Or-w7VFKGRI-eZ9w26JgLeG6z1rJxhJ783nJ0TOEisk"
     sheet_name = " A/B $5MM+ through 11/3"
@@ -35,7 +36,8 @@ class GoogleSheetsClient:
         pass
         self.authorize()
         self.load_header()
-        self.logger = logging.getLogger(__name__.split('.')[-1])
+        self.logger = logging.getLogger(__name__.split(".")[-1])
+        self.service
 
     def authorize(self):
         creds = None
@@ -56,15 +58,16 @@ class GoogleSheetsClient:
                 token.write(creds.to_json())
 
         self.creds = creds
+        self.service = build("sheets", "v4", credentials=self.creds)
 
     def load_header(self):
         self.sheet_header = self.read_rows(f"{self.sheet_name}!A1:AW1")[0]
 
     def read_rows(self, range_name, is_load_formulas=False) -> List[list]:
         try:
-            service = build("sheets", "v4", credentials=self.creds)
+
             if not self._loaded_sheet:
-                self._loaded_sheet = service.spreadsheets()
+                self._loaded_sheet = self.service.spreadsheets()
 
             value_render_option = "FORMATTED_VALUE"
             if is_load_formulas:
@@ -111,28 +114,96 @@ class GoogleSheetsClient:
         found_rows = self.read_rows(f"{self.sheet_name}!{column_name_exc}2:{column_name_exc}", is_load_formulas)
         return found_rows
 
-    def discover_column_from_name(self, column_name: str) -> str:
-        def get_colnum_string(n):
-            string = ""
-            while n > 0:
-                n, remainder = divmod(n - 1, 26)
-                string = chr(65 + remainder) + string
-            return string
+    __colnames_cache: Dict[str, str] = {}
 
-        return get_colnum_string(int(self.sheet_header.index(column_name) + 1))
+    @staticmethod
+    def get_colnum_string(n):
+        string = ""
+        while n > 0:
+            n, remainder = divmod(n - 1, 26)
+            string = chr(65 + remainder) + string
+        return string
+
+    def discover_column_from_name(self, column_name: str) -> str:
+        try:
+            return self.__colnames_cache[column_name]
+        except KeyError:
+
+            cached_value = self.get_colnum_string(int(self.sheet_header.index(column_name) + 1))
+            self.__colnames_cache[column_name] = cached_value
+            return self.__colnames_cache[column_name]
 
     def load_all_rows_from_name(self, column_name):
 
-        while retries_count:=0 < 100:
+        while retries_count := 0 < 100:
             data = self.load_all_rows(self.discover_column_from_name(column_name))
-            if not any(['Loading...' in p for p in data]):
-                return [p[0] if p else '' for p in data]
-            retries_count+=1
+            # Check if all functions have resulted
+            if not any(["Loading..." in p for p in data]):
+                return [p[0] if p else "" for p in data]
+            retries_count += 1
 
             seconds_to_sleep = 2
-            self.logger.debug(f'Waiting for {seconds_to_sleep} seconds to get formulas loaded.')
+            self.logger.debug(f"Waiting for {seconds_to_sleep} seconds to get formulas loaded.")
             sleep(seconds_to_sleep)
         raise RuntimeError(f"Failed to fetch all links for column '{column_name}'")
+
+    def _is_valid_range(self, start_col, end_col, values: List[list]):
+        _start_col_idx = self.sheet_header.index(start_col)
+        _end_col_idx = self.sheet_header.index(end_col)
+        self.logger.debug(_start_col_idx)
+        self.logger.debug(_end_col_idx)
+        self.logger.debug((_end_col_idx - _start_col_idx) + 1)
+        self.logger.debug(len(values))
+        range_len = (_end_col_idx - _start_col_idx + 1)
+        if any([len(r) != range_len for r in values]):
+            self.logger.critical(f"Cannot update values with provided range: ['{start_col}':'{end_col}'], values: {values}")
+            return False
+        return True
+
+    def _get_range_cell(self, row_idx, start_col, end_col):
+        _range_start = f'{self.discover_column_from_name(start_col)}{row_idx}'
+        _range_end =  f'{self.discover_column_from_name(end_col)}{row_idx}'
+        return f'{_range_start}:{_range_end}'
+
+    def update_values(self, row_idx, start_col, end_col, values: List[list]):
+        if self._is_valid_range(start_col, end_col, values):
+            updatable_range = self._get_range_cell(row_idx, start_col, end_col)
+            self.logger.debug(f'Updating range [{updatable_range}] with values {values}')
+            return self._update_values(updatable_range, values)
+        return None
+
+    def _update_values(self, range_name, values: List[list]):
+        """_summary_
+
+        Args:
+            range_name (_type_): _description_
+            values (_type_):
+                    values = [
+                        [
+                            # Cell values ...
+                        ],
+                        # Additional rows ...
+                    ]
+
+        Returns:
+            _type_: _description_
+        """
+        try:
+            body = {"values": values}
+            value_input_option = "USER_ENTERED"
+            result = (
+                self.service.spreadsheets()
+                .values()
+                .update(
+                    spreadsheetId=self.spreadsheet_id, range=range_name, valueInputOption=value_input_option, body=body
+                )
+                .execute()
+            )
+            self.logger.info(f"{result.get('updatedCells')} cells updated.")
+            return result
+        except HttpError as error:
+            self.logger.info(f"An error occurred: {error}")
+            return error
 
 
 if __name__ == "__main__":
@@ -140,21 +211,23 @@ if __name__ == "__main__":
 
     settings = get_project_settings()
     sheets_process = GoogleSheetsClient(settings.get("TOKEN_PATH"), settings.get("CREDENTIALS_PATH"))
-    # print(sheets_process.sheet_header)
-    names = [
-        "[URL] Case Link",
-        "[URL] Attorneys",
-        "[URL] Petition",
-        "[URL] Schedule A/B",
-        "[URL] Schedule D",
-        "[URL] Schedule E/F",
-        "[URL] Top Twenty",
+    #
+    cols = [
+        "Status",
+        "Creditor Notes",
+        "Borrower Notes",
+        "Property Notes",
+        "ADDRESS",
+        "Attorney Email",
+        "Other Attorney Emails",
     ]
-    import json
+    print(len(cols))
+    start_col = "Status"
+    end_col = "Other Attorney Emails"
+    values = ["TEMP", "TEMP1", "a", "b", "c", "temp2", "3"]
 
-    print(json.dumps(sheets_process.sheet_header, indent=4))
-    case_links = sheets_process.load_all_rows_from_name("[URL] Case Link")
-    print(case_links)
-
+    sheets_process.update_values(2, start_col, end_col, [values])
+    # # Pass: spreadsheet_id,  range_name, value_input_option and  _values
+    # sheets_process.update_values( "A1:C2", [["A", "B"], ["C", "D"]])
     # TODO google docs
     # https://developers.google.com/sheets/api/quickstart/python
