@@ -1,10 +1,10 @@
-import json
+from itertools import zip_longest
 import logging
+import pickle
 from typing import Iterator, List
-
 from scrapy.utils.project import get_project_settings
 from twisted.internet import defer, reactor, threads
-from twisted.internet.defer import inlineCallbacks, returnValue
+from twisted.internet.defer import inlineCallbacks
 from commands.base.base_command import BaseCommand
 from spiders.pw_status_check_spider import PWStatusCheckSpider
 from spiders.case_status_spider import CaseStatusSpider
@@ -16,10 +16,10 @@ from utils.get_parsed_address import get_parsed_address
 from utils.google_sheets.google_sheets_client import GoogleSheetsClient
 from twisted.internet.error import ReactorNotRunning
 from scrapy.utils.project import get_project_settings
+from os import remove
+import json
 
-
-from utils.pdf.get_pdf_content_ocr import get_pdf_content_ocr
-import re
+from utils.pdf_parser.pdf_parser import PdfParser
 
 
 class EnrichSpreadsheet(BaseCommand):
@@ -30,15 +30,12 @@ class EnrichSpreadsheet(BaseCommand):
         self.project_settings = get_project_settings()
         self.logger = logging.getLogger(self.__class__.__name__)
         self.sheets_process: GoogleSheetsClient
+        self.pdf_parser = PdfParser()
 
     def init(self):
         """Init method for all resource-consuming things"""
         settings = self.settings
         self.sheets_process = GoogleSheetsClient(settings.get("TOKEN_PATH"), settings.get("CREDENTIALS_PATH"))
-
-    def _exit(self, _result=None):
-        print("Name Combination search queries generation has been completed")
-        reactor.stop()
 
     def _errback(self, failure):
         self.logger.error(failure)
@@ -61,6 +58,7 @@ class EnrichSpreadsheet(BaseCommand):
 
         # TODO MAKE THIS NOT HARDCODED???
         case_numbers_list = sheets_process.load_all_rows_from_name("Case No")
+        case_statuses_list = sheets_process.load_all_rows_from_name("Status")
         case_link_list = sheets_process.load_all_rows_from_name("[URL] Case Link")
         attorney_list = sheets_process.load_all_rows_from_name("[URL] Attorneys")
         petition_list = sheets_process.load_all_rows_from_name("[URL] Petition")
@@ -70,8 +68,19 @@ class EnrichSpreadsheet(BaseCommand):
         top_twenty_list = sheets_process.load_all_rows_from_name("[URL] Top Twenty")
 
         row_number = 2  # Header skipped
-        for (case_number, case_link, attorney, petition, schedule_a_b, schedule_d, schedule_e_f, top_twenty) in zip(
+        for (
+            case_number,
+            case_status_original,
+            case_link,
+            attorney,
+            petition,
+            schedule_a_b,
+            schedule_d,
+            schedule_e_f,
+            top_twenty,
+        ) in zip_longest(
             case_numbers_list,
+            case_statuses_list,
             case_link_list,
             attorney_list,
             petition_list,
@@ -83,6 +92,7 @@ class EnrichSpreadsheet(BaseCommand):
             cases.append(
                 Case(
                     row_number,
+                    case_status_original,
                     case_number,
                     case_link,
                     attorney,
@@ -103,7 +113,7 @@ class EnrichSpreadsheet(BaseCommand):
         # ~ 1.1 Check file from 'Case Link' (column A):
         # - If pdf contains 'dismissed' in top right corner - status should be set as 'Dismissed'. CONTINUE processing this row.
         # - Else: continue processing, status 'Active'
-        self.logger.info(f"Case {case.case_number}: Starting PW case status checking")
+        self.logger.info(f"Case '{case.case_number}': Starting PW case status checking")
         spider = PWStatusCheckSpider()
         try:
             d = threads.deferToThread(spider.get_page_html_playwright, case.url_case_link, [".card-header"])
@@ -115,100 +125,134 @@ class EnrichSpreadsheet(BaseCommand):
             filename = yield fd
             case.files["url_attorney"] = filename
         except Exception as err:
-            self.logger.error(f"Case {case.case_number}: Got an error while enriching case: {str(err)}")
+            self.logger.error(f"Case '{case.case_number}': Got an error while enriching case: {str(err)}")
             case.case_status = CaseStatus.processing_failed
             # No need to process more
 
         return case
 
+    def filter_cases_by_orig_status(self, cases: List[Case]) -> List[Case]:
+        skip_statuses_list = [CaseStatus.dismissed.value, CaseStatus.active.value]
+        # TODO REMOVE??
+        #skip_statuses_list.append(CaseStatus.processing_failed.value)
+        # skip_statuses_list.append(CaseStatus.possible_failure.value)
+
+        logging.getLogger("case_status_spider").setLevel("INFO")
+        logging.getLogger("scrapy.core.engine").setLevel("INFO")
+
+        new_cases = []
+        for case in cases:
+            if case.case_status_original in skip_statuses_list:
+                continue
+            new_cases.append(case)
+        return new_cases
+
     def run(self, args, opts):
         self.args = args
         self.opts = opts
 
-        cases: List[Case] = self.load_cases()
+        is_debug_run = False
+        # TODO THIS IS FOR DEBUG ONLY
+        if is_debug_run:
+            with open("debug_cases.pickle", "rb") as handle:
+                cases = pickle.load(handle)
 
-        self.logger.info(f"Received {len(cases)} cases from Google Sheet")
-        # TODO REMOVE, DEBUG ONLY
-        # cases = cases[:5]
+            processable_cases = ["9:22-bk-90090"]
+            # processable_cases = [c.case_number for c in cases]
 
-        self.logger.info("Starting processing case statuses")
+            required_cases = []
+            for c in cases:
+                if c.case_number in processable_cases:
+                    required_cases.append(c)
 
-        # TODO UNCOMMENT
-        self.run_status_checks(cases)
-        reactor.run()
+            cases = required_cases
 
-        for c in cases:
-            self.logger.info(f"Case {c.case_number}: value {c.case_status} file {c.files['url_attorney']}")
-        # return
-        # self.save_cases(cases)
+            for index, case in enumerate(cases):
+                self.logger.info(f"Processing case {index+1} of {len(cases)}")
+                if case.case_status == CaseStatus.processing_failed:
+                    self.logger.debug("Skipped case processing, but will update status")
+                # NOTE: This is not usual way
+                self.process_files(case)
+                # self.logger.debug(json.dumps(case.__dict__, indent=4, default=str))
+                if case.case_status != CaseStatus.processing_failed:
+                    self.update_case(case)
+                else:
+                    self.update_case_status(case)
 
-        # NOTE: DEBUG ONLY
-        # cases = [
-        #     Case(
-        #         2,
-        #         "https://www.inforuptcy.com/filings/cacbke_1942604",
-        #         "https://www.inforuptcy.com/attorneys/export-csv/cacbke_1942604",
-        #         "https://www.inforuptcy.com/ir-documentselect/download_pdf/docket/cacbke_1942604/1/1",
-        #         "https://pdf.inforuptcy.com/pacer/cacbke/1942604/schedule-forms/ab-0B9EC878-A4FA-11EC-9453-2161FAA6289E?filename=schedule_ab.pdf",
-        #         "https://pdf.inforuptcy.com/pacer/cacbke/1942604/schedule-forms/d-0B40C41C-A4FA-11EC-AF6D-23267CB7F93E?filename=schedule_d.pdf",
-        #         "https://pdf.inforuptcy.com/pacer/cacbke/1942604/schedule-forms/ef-0B1CA190-A4FA-11EC-A9E4-51F6E80E6D45?filename=schedule_ef.pdf",
-        #         "",
-        #     )
-        # ]
-        # cases[0].files = {
-        #     "url_attorney": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_attorney\\httpswwwinforuptcycomattorneysexportcsvcacbke1942604.csv",
-        #     "url_schedule_d": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_schedule_d\\httpspdfinforuptcycompacercacbke1942604scheduleformsd0B40C41CA4FA11ECAF6D23267CB7F93Efilenamescheduledpdf.pdf",
-        #     "url_schedule_a_b": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_schedule_a_b\\httpspdfinforuptcycompacercacbke1942604scheduleformsab0B9EC878A4FA11EC94532161FAA6289Efilenamescheduleabpdf.pdf",
-        #     # "url_schedule_a_b": "D:/upwork/wilroserealty_pdf_parsing/temp\\url_schedule_a_b\\schedule_ab.pdf",
-        # }
-        # cases[0].case_status = CaseStatus.dismissed
+                self.logger.debug(json.dumps(case.__dict__, indent=4, default=str))
 
-        for case in cases:
-            if case.case_status == CaseStatus.processing_failed:
-                self.logger.debug("Skipped case processing, but will update status")
-                self.update_case_status(case)
-                continue
-            self.process_files(case)
-            # NOTE: For now, cases will not have status updated when error occured
-            self.update_case(case)
+        if not is_debug_run:
+            cases: List[Case] = self.load_cases()
+            # TODO REMOVE
 
-        # TODO REMOVE THIS
-        # self.logger.info(json.dumps([c.__dict__ for c in cases], indent=4, default=str))
-        # Required modules:
-        # - Google Sheets usage (login, read, edit, save)
-        # - Status webpage scraping
-        # - (possibly) CSV parsing
-        # - PDF file download
-        # - PDF file content reading and parsing
+            self.logger.info(f"Received {len(cases)} cases from Google Sheet")
+            self.logger.info("Starting processing case statuses")
+            # cases = self.filter_cases_by_orig_status(cases)
+            # cases = cases[:1]
 
-        # reactor.callLater(0, self.execute, args, opts)
-        # reactor.run()
+            # processable_cases = ["4:22-bk-31579"]
+            processable_cases = [c.case_number for c in cases]
+
+            required_cases = []
+            for c in cases:
+                if c.case_number in processable_cases:
+                    required_cases.append(c)
+
+            cases = required_cases
+
+            self.logger.info(f"Will process {len(cases)} cases after filtering by status")
+            self.process_cases(cases)
+
+            if not cases:
+                self.logger.info("Will skip next steps, as cases were filtered out")
+                return
+
+            reactor.run()
+
+            with open("debug_cases.pickle", "wb") as handle:
+                pickle.dump(cases, handle)
+
+    def clear_cached_files(self, case: Case) -> None:
+        for _, file_path in case.files.items():
+            remove(file_path)
+            self.logger.debug(f"Removed file {file_path}")
 
     def process_files(self, case: Case):
-        # file_field_type_mapping = {
-        #     "url_attorney": "csv",
-        #     # TODO url_petition
-        #     "url_schedule_a_b": "pdf",
-        #     "url_schedule_d": "pdf",
-        #     "url_schedule_e_f": "pdf",
-        #     "url_top_twenty": "pdf",
-        # }
-
         # 2. Attorney emails fillup (columns AJ, AK)
         # Save only emails. First person - column AJ, others go to AK
         # Get data from column K (Attorneys): it has a csv file inside and contains same emails
+        error_msgs = []
         try:
-            attorney_email, other_attorney_emails = self.attorney_csv_parsing(case)
-            case.enrichable_values["attorney_email"] = attorney_email
-            case.enrichable_values["other_attorney_emails"] = other_attorney_emails
 
-            schedule_a_b_data = schedule_a_b_parsing(case.files["url_schedule_a_b"])
-            case.enrichable_values["schedule_a_b_rows"] = schedule_a_b_data
+            try:
+                attorney_email, other_attorney_emails = self.attorney_csv_parsing(case)
+                case.enrichable_values["attorney_email"] = attorney_email
+                case.enrichable_values["other_attorney_emails"] = other_attorney_emails
+            except Exception as err:
+                error_msgs.append(f"Attorneys.csv file parsing: {str(err)}")
 
-            schedule_d_data = schedule_d_parsing(case.files["url_schedule_d"])
-            case.enrichable_values["schedule_d_rows"] = schedule_d_data
+            try:
+                schedule_a_b_data = self.pdf_parser.schedule_a_b_parsing(case.files["url_schedule_a_b"])
+                case.enrichable_values["schedule_a_b_rows"] = schedule_a_b_data
+            except Exception as err:
+                error_msgs.append(f"Schedule A/B parsing: {str(err)}")
+
+            try:
+                case.enrichable_values["addresses"] = self._process_addresses(case)
+            except Exception as err:
+                error_msgs.append(f"Address parsing: {str(err)}")
+
+            try:
+                schedule_d_data = self.pdf_parser.schedule_d_parsing(case.files["url_schedule_d"])
+                case.enrichable_values["schedule_d_rows"] = schedule_d_data
+            except Exception as err:
+                error_msgs.append(f"Schedule D parsing: {str(err)}")
+
         except Exception as err:
-            self.logger.error(f"Case {case.case_number}: Failed to process case: {str(err)}")
+            error_msgs.append(f"Case data parsing: {str(err)}")
+        if error_msgs:
+            all_msgs = "\n".join(error_msgs)
+            self.logger.error(f"Case '{case.case_number}': Failed to process case: {all_msgs}")
             case.case_status = CaseStatus.processing_failed
 
     def _get_dict_formatted(self, case: Case, field_name: str) -> str:
@@ -219,25 +263,37 @@ class EnrichSpreadsheet(BaseCommand):
             return f"Failed to parse due to missing value: {field_name}"
 
     def _process_addresses(self, case: Case):
-        addresses = [get_parsed_address(v[0]) for k, v in case.enrichable_values["schedule_a_b_rows"].items()]
-        return "\n".join(addresses)
+        if case.enrichable_values.get("schedule_a_b_rows"):
+            addresses = [get_parsed_address(v[0]) for k, v in case.enrichable_values["schedule_a_b_rows"].items()]
+            return "\n".join(addresses)
+        return ""
+
+    def _check_possible_failure(self, case: Case):
+        addr = self._process_addresses(case)
+        ab_data = self._get_dict_formatted(case, "schedule_a_b_rows")
+        d_data = self._get_dict_formatted(case, "schedule_d_rows")
+        if not all((addr, ab_data, d_data)):
+            case.case_status = CaseStatus.possible_failure
 
     def _prepare_case_data(self, case: Case) -> List[str]:
         # "Status","Creditor Notes","Borrower Notes","Property Notes","ADDRESS","Attorney Email","Other Attorney Emails"
+        self._check_possible_failure(case)
+
         _mapping = {
             "Status": case.case_status.value,
             "Creditor Notes": self._get_dict_formatted(case, "schedule_d_rows"),
             "Borrower Notes": "UNSUPPORTED",
             "Property Notes": self._get_dict_formatted(case, "schedule_a_b_rows"),
-            "ADDRESS": self._process_addresses(case),
+            "ADDRESS": case.enrichable_values["addresses"],
             "Attorney Email": case.enrichable_values["attorney_email"],
             "Other Attorney Emails": case.enrichable_values["other_attorney_emails"],
         }
+
         return [v for k, v in _mapping.items()]
 
     def update_case(self, case: Case):
         # Status","Creditor Notes","Borrower Notes","Property Notes","ADDRESS","Attorney Email","Other Attorney Emails
-        self.logger.info(f"Case {case.case_number}: Updating case rows")
+        self.logger.info(f"Case '{case.case_number}': Updating case rows")
         try:
             prepared_values = self._prepare_case_data(case)
             # TODO Ideally somehow define these values
@@ -246,12 +302,12 @@ class EnrichSpreadsheet(BaseCommand):
 
             self.sheets_process.update_values(case.case_row_number, start_column, end_column, [prepared_values])
         except Exception as err:
-            self.logger.error(f"Case {case.case_number}: Failed to prepare case for update: {str(err)}")
+            self.logger.error(f"Case '{case.case_number}': Failed to prepare case for update: {str(err)}")
             case.case_status = CaseStatus.processing_failed
             self.update_case_status(case)
 
     def update_case_status(self, case: Case):
-        self.logger.info(f"Case {case.case_number}: Updating case status")
+        self.logger.info(f"Case '{case.case_number}': Updating case status")
         _mapping = {
             "Status": case.case_status.value,
         }
@@ -259,172 +315,65 @@ class EnrichSpreadsheet(BaseCommand):
         start_column = "Status"
         self.sheets_process.update_values(case.case_row_number, start_column, start_column, [prepared_values])
 
+    def _return_empty_if_nan(self, line: str) -> str:
+        line = str(line)
+        return "" if line == "nan" else line
+
     def attorney_csv_parsing(self, case: Case) -> tuple:
+        import numpy as np
+
         data = pd.read_csv(case.files["url_attorney"])
         df = pd.DataFrame(data, columns=["Name", "Email"])
         try:
-            attorney_email = df["Email"][0]
+            attorney_email = str()
+            attorney_email = self._return_empty_if_nan(df["Email"][0])
         except IndexError:
             self.logger.debug(f"No value for field 'Attorney Email'")
             attorney_email = ""
         try:
-            other_attorney_emails = "\n".join(df["Email"][1:])
+            fixed_list = [str(f).strip() for f in df["Email"][1:] if self._return_empty_if_nan(f)]
+            other_attorney_emails = "\n".join(fixed_list)
         except IndexError:
             self.logger.debug(f"No value for field 'Other Attorney Emails'")
             other_attorney_emails = ""
         return attorney_email, other_attorney_emails
 
     @defer.inlineCallbacks  # type: ignore
-    def run_status_checks(self, cases: List[Case]) -> Iterator[defer.Deferred]:
-        self.crawler_process.crawl(CaseStatusSpider, cases=cases)  # type: ignore
+    def process_cases(self, cases: List[Case]) -> Iterator[defer.Deferred]:
+        yield self.crawler_process.crawl(CaseStatusSpider, cases=cases)  # type: ignore
 
-        case_statuses = []
+        len_cases = len(cases)
 
-        def update_case_fields(result: Case, case: Case):
-            # TODO CHECK THIS
+        def update_case_fields(result: Case, case: Case, case_index):
+            # TODO DEBUG THIS
+            self.logger.info(f"Processing case {case_index} of {len_cases}")
             case.case_status = result.case_status
             case.files["url_attorney"] = result.files["url_attorney"]
+            if case.case_status == CaseStatus.processing_failed:
+                self.logger.debug("Skipped case processing, but will update status")
+                self.update_case_status(case)
+                # continue
+                return
+            self.process_files(case)
+            # TODO CHECK IF IT WAS INVOKED
+            # self.process_files(case)
+            if case.case_status != CaseStatus.processing_failed:
+                self.update_case(case)
+            else:
+                self.update_case_status(case)
 
-        for case in cases:
-            yield self.check_status_pw(case).addCallback(update_case_fields, case)
+            self.logger.debug(json.dumps(case.__dict__, indent=4, default=str))
 
-        yield self.crawler_process.join()  # type: ignore
+            # TODO REMOVE ALL CASE FILES BEFORE AND AFTER RUNS
+            # self.clear_cached_files(case)
+
+        for index, case in enumerate(cases):
+            case_check_defer = self.check_status_pw(case)
+            case_check_defer.addCallback(update_case_fields, case, index + 1)
+            final_res = yield case_check_defer
+
+        # yield self.crawler_process.join()  # type: ignore
         try:
             reactor.callFromThread(reactor.stop)  # type: ignore
         except ReactorNotRunning:
             pass
-
-    def save_cases(self, cases):
-        with open("output.json", "w", encoding="utf-8") as outp:
-            outp.write(json.dumps([c.__dict__ for c in cases], indent=4, default=str))
-
-
-from subprocess import CalledProcessError
-
-
-logger = logging.getLogger(__name__)
-
-
-def schedule_a_b_parsing(filename):
-    # 3. 'Schedule A/B' parsing
-    # Fill 'Notes' column with data from section 9, rows '55.{X}' (where X will change)
-    # Take only first two columns.
-    # TODO
-    # ~ 3.1 (optional) Try to get addresses from data collected in 'Step 3'
-
-    extracted_rows = {}
-    current_group_lines = []
-    is_savable = False
-    boundaries = {"left": 40, "bottom": 80, "right": 320, "top": 792 - 80}
-    for part in get_pdf_content_ocr(filename, boundaries):
-        if not part.strip():
-            continue
-        if part.startswith("56"):
-            break
-
-        if is_savable and not part.startswith("55"):
-            if "   " in part:
-                # Was an image PDF file
-                logger.debug(f"Splitting line as it is from image: {part}")
-                current_group_lines.extend([p.strip() for p in part.split("   ") if p.strip()][:2])
-            else:
-                current_group_lines.append(part)
-        import re
-
-        match = re.search(r"55\.(\d+)", part)
-        if match:
-            group_name = match.group(0)
-            current_group_lines = []
-            extracted_rows[group_name] = current_group_lines
-            is_savable = True
-
-    # Will clear some values now
-    for row, values in extracted_rows.items():
-        if len(values) > 2:
-            # Test whether was a text PDF file
-            row_values = [p.strip() for p in values]
-            last_row = row_values[-1]
-            partial = last_row.strip().split()
-            values[-1] = " ".join(partial[:-1])
-            values.append(partial[-1])
-            extracted_rows[row] = [" ".join(values[:-1]), values[-1]]
-        else:
-            # Was an image PDF file
-            pass
-
-    # is_save_line = False
-    # for line in get_pdf_content_ocr(filename):
-    #     # logger.info(line)
-    #     if line.startswith("56"):
-    #         current_row_id = None
-    #         is_save_line = False
-    #         break
-
-    #     if is_save_line and not line.startswith("55."):
-    #         parts = [p.strip() for p in line.split("  ") if p]
-    #         #logger.info(parts)
-    #         for index, value in enumerate(parts):
-    #             try:
-    #                 curr_cell = extracted_rows[current_row_id][index]
-    #                 extracted_rows[current_row_id][index] = (curr_cell + " " + value).strip()
-    #             except IndexError:
-    #                 print("Failed to enrich row element")
-
-    #     if line.startswith("55.") and "55. " not in line:
-    #         parts = [p.strip() for p in line.split("   ") if p]
-    #         parts = parts[0].split(" ", maxsplit=1) + parts[1:]
-    #         if not parts:
-    #             raise RuntimeError(f"Empty values parsed from line {line}")
-    #         current_row_id = parts[0]
-    #         parts = parts[1:]
-    #         try:
-    #             temp_value = parts[:-2] + parts[-2].split(" ", maxsplit=1) + [parts[-1]]
-    #             current_row = temp_value
-    #         except IndexError:
-    #             missing_columns_count = 5 - len(parts)
-    #             current_row = parts + missing_columns_count * [""]
-
-    #         extracted_rows[current_row_id] = current_row
-    #         is_save_line = True
-
-    # for ind, row in extracted_rows.items():
-    #     print(f'ROW NAME: "{ind}"')
-    #     print(f'{row[:2]}\n')
-
-    return extracted_rows
-
-
-def schedule_d_parsing(filename):
-    # 4. 'Schedule D' parsing (may be tricky)
-    # In section 'List Creditors Who Have Secured Claims'
-    # Get "Creditor's Name" from rows '2.{X}'
-    # Also get "Creditor's mailing address"
-
-    # (not decided yet): Save to 'Creditors Info' column. Maybe will need two columns
-
-    extracted_rows = {}
-    current_group_lines = []
-    is_savable = False
-    boundaries = {"left": 40, "bottom": 80, "right": 180, "top": 792 - 40}
-    for part in get_pdf_content_ocr(filename, boundaries):
-        if is_savable and not part.startswith("2."):
-            current_group_lines.append(part)
-
-        match = re.search(r"2\.(\d+)(.*)", part)
-        if match:
-            group_name = match.group(1)
-
-            current_group_lines = [match.group(2).strip()]
-            extracted_rows[group_name] = current_group_lines
-            is_savable = True
-
-    clear_data = {}
-
-    for ind, row in extracted_rows.items():
-        full_row = " ".join(row)
-        required_text_regex = r"(.*)Creditor's Name(.*)Creditor's mailing address"
-        match = re.search(required_text_regex, full_row)
-        if match:
-            clear_data[ind] = {"name": match.group(1).strip(), "mailing_address": match.group(2).strip()}
-
-    return clear_data
