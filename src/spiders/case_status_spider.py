@@ -51,7 +51,7 @@ class CaseStatusSpider(Spider):
                     meta={"dont_merge_cookies": True},
                 )
             else:
-                self.logger.warning(f"Case {case.case_number}: Case is missing '{name}' file url")
+                self.logger.warning(f"Case '{case.case_number}': Case is missing '{name}' file url")
         else:
             return []
 
@@ -60,7 +60,7 @@ class CaseStatusSpider(Spider):
         with open(filename, "wb") as outp:
             outp.write(response.body)
         case.files[file_field] = filename
-        self.logger.info(f"Case {case.case_number}: Received file '{file_field}'")
+        self.logger.debug(f"Case '{case.case_number}': Received file '{file_field}'")
 
     def get_full_filename(self, case, file_field):
         file_storage = self.settings.get("TEMP_DIR_PATH")

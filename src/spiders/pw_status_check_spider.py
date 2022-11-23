@@ -55,6 +55,7 @@ class PWStatusCheckSpider:
 
     def download_file_pw(self, case: Case, field_name: str) -> str:
         """Download logic for csv file which has closable tab"""
+        self.logger.debug(f"Case '{case.case_number}': Downloading file {field_name}")
         filename = self.get_full_filename(case, field_name)
         with sync_playwright() as p:
             browser_type = p.chromium
