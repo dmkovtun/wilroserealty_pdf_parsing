@@ -20,7 +20,6 @@ from os import getcwd
 import os
 
 from pytesseract import pytesseract
-from utils.pdf.get_pdf_content import get_pdf_content
 
 from utils.pdf.is_text_file import is_text_file
 import logging
@@ -55,11 +54,8 @@ def get_pdf_content_ocr(filename: str, boundaries: dict={}) -> Iterator[str]:
     Returns:
         Iterator[str]: Yields str text for each PDF page.
     """
-    logger.info(f'is_text_file(filename) {is_text_file(filename)}')
-    if is_text_file(filename):
-        yield from get_pdf_content(filename,boundaries=boundaries)
-    else:
-        yield from _process_scanned_pdf(filename)
+    # logger.info(f'is_text_file(filename) {is_text_file(filename)}')
+    yield from _process_scanned_pdf(filename)
 
 def _process_scanned_pdf(filename: str) -> Iterator[str]:
     pdf_file = Pdf.open(filename)
@@ -115,5 +111,5 @@ def _denoise_image(file_path: str):
 def _generate_text_from_images(file_path: str) -> Iterator[str]:
     data = pytesseract.image_to_string(file_path, lang="eng", config="-c preserve_interword_spaces=1")
     # TODO UNCOMMENT
-    # os.remove(file_path)
+    os.remove(file_path)
     yield from data.splitlines()
