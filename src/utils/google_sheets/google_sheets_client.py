@@ -166,6 +166,7 @@ class GoogleSheetsClient:
         return f'{_range_start}:{_range_end}'
 
     def update_values(self, row_idx, start_col, end_col, values: List[list]):
+
         if self._is_valid_range(start_col, end_col, values):
             updatable_range = self._get_range_cell(row_idx, start_col, end_col)
             self.logger.debug(f'Updating range [{updatable_range}] with values {values}')
@@ -188,22 +189,31 @@ class GoogleSheetsClient:
         Returns:
             _type_: _description_
         """
-        try:
-            body = {"values": values}
-            value_input_option = "USER_ENTERED"
-            result = (
-                self.service.spreadsheets()
-                .values()
-                .update(
-                    spreadsheetId=self.spreadsheet_id, range=range_name, valueInputOption=value_input_option, body=body
+        while True:
+            try:
+                body = {"values": values}
+                value_input_option = "USER_ENTERED"
+                result = (
+                    self.service.spreadsheets()
+                    .values()
+                    .update(
+                        spreadsheetId=self.spreadsheet_id, range=range_name, valueInputOption=value_input_option, body=body
+                    )
+                    .execute()
                 )
-                .execute()
-            )
-            self.logger.info(f"{result.get('updatedCells')} cells updated.")
-            return result
-        except HttpError as error:
-            self.logger.info(f"An error occurred: {error}")
-            return error
+                self.logger.info(f"{result.get('updatedCells')} cells updated.")
+                return result
+
+            except HttpError as error:
+                self.logger.info(f"An error occurred: {error}")
+
+                if 'Quota exceeded for quota metric' in str(error):
+                    self.logger.warning('Write requests quota exceeded. Will wait')
+                    from time import sleep
+                    sleep(20)
+                    continue
+                else:
+                    return error
 
 
 if __name__ == "__main__":
