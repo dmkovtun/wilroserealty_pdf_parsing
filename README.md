@@ -12,6 +12,16 @@
 
 
 
+Add Tesseract-OCR app to 'packages' dir
+Add Poppler app to 'packages' dir
+
+
+
+# TODO REMOVE pypdfium2
+
+
+
+
 # Google API enabling process
 
 https://developers.google.com/sheets/api/quickstart/python#enable_the_api
@@ -23,6 +33,10 @@ Need to enable Google Sheets usage for an app.
 https://console.cloud.google.com/apis/library/sheets.googleapis.com?project=wilroserealty-pdf-parsing
 
 # How to use
+
+
+
+> poetry run scrapy enrich_spreadsheet > enrich.log 2>&1
 
 
 
