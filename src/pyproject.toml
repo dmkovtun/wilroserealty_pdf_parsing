@@ -24,6 +24,7 @@ python-dotenv = "^0.21.0"
 playwright = "^1.28.0"
 pypdfium2 = "^3.8.0"
 usaddress = "^0.5.10"
+PyMuPDF = "^1.21.0"
 
 [tool.poetry.dev-dependencies]
 

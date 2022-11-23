@@ -714,6 +714,14 @@ python-versions = "*"
 typing-extensions = "*"
 
 [[package]]
+name = "pymupdf"
+version = "1.21.0"
+description = "Python bindings for the PDF toolkit and renderer MuPDF"
+category = "main"
+optional = false
+python-versions = ">=3.7"
+
+[[package]]
 name = "pyopenssl"
 version = "22.1.0"
 description = "Python wrapper module around the OpenSSL library"
@@ -1125,7 +1133,7 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">3.8.1"
-content-hash = "8775a97bf347ae566bf14ff53d4c0dd1c217b906387d20eea4da80c111d6357d"
+content-hash = "dcfc9c0cae5ddb28ce1f1f6fd43f87cd21e5916b835286b505f509584f2c6190"
 
 [metadata.files]
 attrs = []
@@ -1243,6 +1251,7 @@ pycparser = [
 ]
 pydispatcher = []
 pyee = []
+pymupdf = []
 pyopenssl = []
 pyparsing = [
     {file = "pyparsing-3.0.9-py3-none-any.whl", hash = "sha256:5026bae9a10eeaefb61dab2f09052b9f4307d44aee4eda64b309723d8d206bbc"},
