@@ -3,6 +3,7 @@ from .case_status import CaseStatus
 
 class Case:
     case_row_number: int
+    case_status_original: str
     case_number: str
     url_case_link: str
     url_attorney: str
@@ -23,6 +24,7 @@ class Case:
     def __init__(
         self,
         case_row_number,
+        case_status_original,
         case_number,
         url_case_link,
         url_attorney,
@@ -33,6 +35,7 @@ class Case:
         url_top_twenty,
     ) -> None:
         self.case_row_number = case_row_number
+        self.case_status_original = case_status_original
         self.case_number = case_number
         self.url_case_link = url_case_link
         self.url_attorney = url_attorney
