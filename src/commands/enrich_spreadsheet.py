@@ -125,7 +125,7 @@ class EnrichSpreadsheet(BaseCommand):
             filename = yield fd
             case.files["url_attorney"] = filename
         except Exception as err:
-            self.logger.error(f"Case '{case.case_number}': Got an error while enriching case: {str(err)}")
+            self.logger.error(f"Case '{case.case_number}': Got an error while enriching case via PW: {str(err)}")
             case.case_status = CaseStatus.processing_failed
             # No need to process more
 
@@ -134,7 +134,7 @@ class EnrichSpreadsheet(BaseCommand):
     def filter_cases_by_orig_status(self, cases: List[Case]) -> List[Case]:
         skip_statuses_list = [CaseStatus.dismissed.value, CaseStatus.active.value]
         # TODO REMOVE??
-        #skip_statuses_list.append(CaseStatus.processing_failed.value)
+        # skip_statuses_list.append(CaseStatus.processing_failed.value)
         # skip_statuses_list.append(CaseStatus.possible_failure.value)
 
         logging.getLogger("case_status_spider").setLevel("INFO")
@@ -183,14 +183,14 @@ class EnrichSpreadsheet(BaseCommand):
 
         if not is_debug_run:
             cases: List[Case] = self.load_cases()
-            # TODO REMOVE
 
             self.logger.info(f"Received {len(cases)} cases from Google Sheet")
             self.logger.info("Starting processing case statuses")
             # cases = self.filter_cases_by_orig_status(cases)
-            # cases = cases[:1]
+            # TODO REMOVE
+            #cases = cases[:10]
 
-            # processable_cases = ["4:22-bk-31579"]
+            #processable_cases = ["5:22-bk-00056"]
             processable_cases = [c.case_number for c in cases]
 
             required_cases = []
@@ -225,9 +225,10 @@ class EnrichSpreadsheet(BaseCommand):
         try:
 
             try:
-                attorney_email, other_attorney_emails = self.attorney_csv_parsing(case)
+                attorney_email, other_attorney_emails, gov_emails = self.attorney_csv_parsing(case)
                 case.enrichable_values["attorney_email"] = attorney_email
                 case.enrichable_values["other_attorney_emails"] = other_attorney_emails
+                case.enrichable_values["gov_attorney_emails"] = gov_emails
             except Exception as err:
                 error_msgs.append(f"Attorneys.csv file parsing: {str(err)}")
 
@@ -256,15 +257,20 @@ class EnrichSpreadsheet(BaseCommand):
             case.case_status = CaseStatus.processing_failed
 
     def _get_dict_formatted(self, case: Case, field_name: str) -> str:
+        if not case.enrichable_values.get(field_name):
+            self.logger.error(f"Case '{case.case_number}': Failed to parse due to empty value: {field_name}")
+            return ""
         try:
             dict_data = case.enrichable_values[field_name]
-            return "\n".join([f"{k}: {v}" for k, v in dict_data.items()])
+            return "\n".join(["; ".join([val for _, val in v.items()]) for k, v in dict_data.items()])
         except KeyError as ke:
-            return f"Failed to parse due to missing value: {field_name}"
+            raise RuntimeError(f"Case '{case.case_number}': Failed to parse due to missing value: {field_name}") from ke
 
     def _process_addresses(self, case: Case):
         if case.enrichable_values.get("schedule_a_b_rows"):
-            addresses = [get_parsed_address(v[0]) for k, v in case.enrichable_values["schedule_a_b_rows"].items()]
+            addresses = [
+                get_parsed_address(v["address"]) for k, v in case.enrichable_values["schedule_a_b_rows"].items()
+            ]
             return "\n".join(addresses)
         return ""
 
@@ -282,11 +288,12 @@ class EnrichSpreadsheet(BaseCommand):
         _mapping = {
             "Status": case.case_status.value,
             "Creditor Notes": self._get_dict_formatted(case, "schedule_d_rows"),
-            "Borrower Notes": "UNSUPPORTED",
+            "Borrower Notes": "",
             "Property Notes": self._get_dict_formatted(case, "schedule_a_b_rows"),
             "ADDRESS": case.enrichable_values["addresses"],
             "Attorney Email": case.enrichable_values["attorney_email"],
             "Other Attorney Emails": case.enrichable_values["other_attorney_emails"],
+            "Gov Attorney Emails": case.enrichable_values["gov_attorney_emails"],
         }
 
         return [v for k, v in _mapping.items()]
@@ -298,7 +305,7 @@ class EnrichSpreadsheet(BaseCommand):
             prepared_values = self._prepare_case_data(case)
             # TODO Ideally somehow define these values
             start_column = "Status"
-            end_column = "Other Attorney Emails"
+            end_column = "Gov Attorney Emails"
 
             self.sheets_process.update_values(case.case_row_number, start_column, end_column, [prepared_values])
         except Exception as err:
@@ -320,23 +327,27 @@ class EnrichSpreadsheet(BaseCommand):
         return "" if line == "nan" else line
 
     def attorney_csv_parsing(self, case: Case) -> tuple:
-        import numpy as np
-
         data = pd.read_csv(case.files["url_attorney"])
         df = pd.DataFrame(data, columns=["Name", "Email"])
+        all_emails = [str(f).strip() for f in df["Email"] if self._return_empty_if_nan(f)]
+
+        # Other attorney email - make 'usdoj.gov' to another column
+        # If Attorney email is empty - fillup with second one
+
+        gov_emails = [f for f in all_emails if "usdoj.gov" in f]
+        non_gov_emails = [f for f in all_emails if "usdoj.gov" not in f]
         try:
-            attorney_email = str()
-            attorney_email = self._return_empty_if_nan(df["Email"][0])
+            attorney_email = non_gov_emails[0]
         except IndexError:
             self.logger.debug(f"No value for field 'Attorney Email'")
             attorney_email = ""
         try:
-            fixed_list = [str(f).strip() for f in df["Email"][1:] if self._return_empty_if_nan(f)]
-            other_attorney_emails = "\n".join(fixed_list)
+            other_attorney_emails = "\n".join(non_gov_emails[1:])
         except IndexError:
             self.logger.debug(f"No value for field 'Other Attorney Emails'")
             other_attorney_emails = ""
-        return attorney_email, other_attorney_emails
+
+        return attorney_email, other_attorney_emails, "\n".join(gov_emails)
 
     @defer.inlineCallbacks  # type: ignore
     def process_cases(self, cases: List[Case]) -> Iterator[defer.Deferred]:
@@ -347,14 +358,17 @@ class EnrichSpreadsheet(BaseCommand):
         def update_case_fields(result: Case, case: Case, case_index):
             # TODO DEBUG THIS
             self.logger.info(f"Processing case {case_index} of {len_cases}")
-            case.case_status = result.case_status
-            case.files["url_attorney"] = result.files["url_attorney"]
-            if case.case_status == CaseStatus.processing_failed:
-                self.logger.debug("Skipped case processing, but will update status")
-                self.update_case_status(case)
-                # continue
-                return
-            self.process_files(case)
+            try:
+                case.case_status = result.case_status
+                case.files["url_attorney"] = result.files["url_attorney"]
+                if case.case_status == CaseStatus.processing_failed:
+                    self.logger.debug("Skipped case processing, but will update status")
+                    self.update_case_status(case)
+                    # continue
+                    return
+                self.process_files(case)
+            except Exception as err:
+                self.logger.error(f"Case '{case.case_number}': Failed to fetch data from PW: {str(err)}")
             # TODO CHECK IF IT WAS INVOKED
             # self.process_files(case)
             if case.case_status != CaseStatus.processing_failed:
