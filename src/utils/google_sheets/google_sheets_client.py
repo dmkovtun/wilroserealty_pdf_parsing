@@ -148,28 +148,36 @@ class GoogleSheetsClient:
         raise RuntimeError(f"Failed to fetch all links for column '{column_name}'")
 
     def _is_valid_range(self, start_col, end_col, values: List[list]):
+        """Checks range length and values length.
+
+        Args:
+            start_col (_type_): _description_
+            end_col (_type_): _description_
+            values (List[list]): _description_
+
+        Returns:
+            _type_: _description_
+        """
         _start_col_idx = self.sheet_header.index(start_col)
         _end_col_idx = self.sheet_header.index(end_col)
-        self.logger.debug(_start_col_idx)
-        self.logger.debug(_end_col_idx)
-        self.logger.debug((_end_col_idx - _start_col_idx) + 1)
-        self.logger.debug(len(values))
-        range_len = (_end_col_idx - _start_col_idx + 1)
+        range_len = _end_col_idx - _start_col_idx + 1
         if any([len(r) != range_len for r in values]):
-            self.logger.critical(f"Cannot update values with provided range: ['{start_col}':'{end_col}'], values: {values}")
+            self.logger.critical(
+                f"Cannot update values with provided range: ['{start_col}':'{end_col}'], values: {values}"
+            )
             return False
         return True
 
     def _get_range_cell(self, row_idx, start_col, end_col):
-        _range_start = f'{self.discover_column_from_name(start_col)}{row_idx}'
-        _range_end =  f'{self.discover_column_from_name(end_col)}{row_idx}'
-        return f'{_range_start}:{_range_end}'
+        _range_start = f"{self.discover_column_from_name(start_col)}{row_idx}"
+        _range_end = f"{self.discover_column_from_name(end_col)}{row_idx}"
+        return f"{_range_start}:{_range_end}"
 
     def update_values(self, row_idx, start_col, end_col, values: List[list]):
 
         if self._is_valid_range(start_col, end_col, values):
             updatable_range = self._get_range_cell(row_idx, start_col, end_col)
-            self.logger.debug(f'Updating range [{updatable_range}] with values {values}')
+            self.logger.debug(f"Updating range [{updatable_range}] with values {values}")
             return self._update_values(updatable_range, values)
         return None
 
@@ -197,7 +205,10 @@ class GoogleSheetsClient:
                     self.service.spreadsheets()
                     .values()
                     .update(
-                        spreadsheetId=self.spreadsheet_id, range=range_name, valueInputOption=value_input_option, body=body
+                        spreadsheetId=self.spreadsheet_id,
+                        range=range_name,
+                        valueInputOption=value_input_option,
+                        body=body,
                     )
                     .execute()
                 )
@@ -205,15 +216,16 @@ class GoogleSheetsClient:
                 return result
 
             except HttpError as error:
-                self.logger.info(f"An error occurred: {error}")
+                self.logger.info(f"An error occurred during row update: {error}")
 
-                if 'Quota exceeded for quota metric' in str(error):
-                    self.logger.warning('Write requests quota exceeded. Will wait')
+                if "Quota exceeded for quota metric" in str(error):
+                    self.logger.warning("Write requests quota exceeded. Will wait")
                     from time import sleep
+
                     sleep(20)
                     continue
                 else:
-                    return error
+                    raise RuntimeError("Failed to update row values") from error
 
 
 if __name__ == "__main__":
