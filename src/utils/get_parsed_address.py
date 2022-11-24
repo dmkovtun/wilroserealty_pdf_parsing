@@ -3,7 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__.split(".")[-1])
 
-
+# TODO \n47,300 square foot office building located at 1300 U Street, 1330 U Street and 1329 V Street, Sacramento, CA 95814 - APNs 009-0144-001-0000,
 def get_parsed_address(line_with_address: str) -> str:
     # TODO parse address like '5755 Bayport Blvd. 5755 Bayport Blvd., Seabrook, TX 77586'
     try:
