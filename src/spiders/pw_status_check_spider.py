@@ -5,12 +5,10 @@ from playwright.sync_api import sync_playwright
 
 from playwright._impl._api_types import Error as PWError
 from random import randint
-from os.path import exists, join
-from os import makedirs
-
-from utils.get_url_hash import get_url_hash
 
 from scrapy.utils.project import get_project_settings
+
+from utils.misc.get_full_filename import get_full_filename
 
 
 class PWStatusCheckSpider:
@@ -56,7 +54,7 @@ class PWStatusCheckSpider:
     def download_file_pw(self, case: Case, field_name: str) -> str:
         """Download logic for csv file which has closable tab"""
         self.logger.debug(f"Case '{case.case_number}': Downloading file {field_name}")
-        filename = self.get_full_filename(case, field_name)
+        filename = get_full_filename(case, field_name)
         with sync_playwright() as p:
             browser_type = p.chromium
             browser = browser_type.launch(headless=self.settings.get("PLAYWRIGHT_HEADLESS"))
@@ -85,28 +83,3 @@ class PWStatusCheckSpider:
             if reason in full_html:
                 return True
         return False
-
-    # TODO REMOVE AS DUPLICATE
-    def get_full_filename(self, case, file_field):
-        file_storage = self.settings.get("TEMP_DIR_PATH")
-
-        full_file_type_dirname = join(file_storage, file_field)
-        if not exists(full_file_type_dirname):
-            makedirs(full_file_type_dirname)
-
-        _filename = "".join(letter for letter in getattr(case, file_field) if letter.isalnum())
-        filename = _filename.split(" ", maxsplit=1)[-1]
-        filename = get_url_hash(filename)
-        full_path = join(full_file_type_dirname, filename)
-        file_type = self.file_field_type_mapping[file_field]
-        return f"{full_path}.{file_type}"
-
-    file_field_type_mapping = {
-        "url_attorney": "csv",
-        # TODO url_petition
-        "url_schedule_a_b": "pdf",
-        "url_schedule_d": "pdf",
-        # TODO (not required right now)
-        # "url_schedule_e_f": "pdf",
-        # "url_top_twenty": "pdf",
-    }

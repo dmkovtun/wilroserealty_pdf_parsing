@@ -4,26 +4,13 @@ from scrapy import Spider, Request
 from utils.case import Case
 from scrapy.http import Response
 
-from os.path import exists, join
-from os import makedirs
-
-from utils.get_url_hash import get_url_hash
+from utils.misc.get_full_filename import get_full_filename
 
 
 class CaseStatusSpider(Spider):
 
     name = "case_status_spider"
     cases: List[Case] = []
-
-    file_field_type_mapping = {
-        "url_attorney": "csv",
-        # TODO url_petition
-        "url_schedule_a_b": "pdf",
-        "url_schedule_d": "pdf",
-        # TODO (not required right now)
-        # "url_schedule_e_f": "pdf",
-        # "url_top_twenty": "pdf",
-    }
 
     def __init__(self, cases: List[Case]):
         self.cases: List[Case] = cases
@@ -56,22 +43,8 @@ class CaseStatusSpider(Spider):
             return []
 
     def parse_downloaded_file(self, response: Response, case: Case, file_field: str):
-        filename = self.get_full_filename(case, file_field)
+        filename = get_full_filename(case, file_field)
         with open(filename, "wb") as outp:
             outp.write(response.body)
         case.files[file_field] = filename
         self.logger.debug(f"Case '{case.case_number}': Received file '{file_field}'")
-
-    def get_full_filename(self, case, file_field):
-        file_storage = self.settings.get("TEMP_DIR_PATH")
-
-        full_file_type_dirname = join(file_storage, file_field)
-        if not exists(full_file_type_dirname):
-            makedirs(full_file_type_dirname)
-
-        _filename = "".join(letter for letter in getattr(case, file_field) if letter.isalnum())
-        filename = _filename.split(" ", maxsplit=1)[-1]
-        filename = get_url_hash(filename)
-        full_path = join(full_file_type_dirname, filename)
-        file_type = self.file_field_type_mapping[file_field]
-        return f"{full_path}.{file_type}"
