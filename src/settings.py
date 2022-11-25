@@ -118,6 +118,18 @@ CREDENTIALS_PATH = join(CREDENTIALS_PATH, "credentials.json")
 logging.getLogger("googleapiclient.discovery_cache").setLevel("WARN")
 logging.getLogger("googleapiclient.discovery").setLevel("INFO")
 logging.getLogger("asyncio").setLevel("INFO")
+logging.getLogger("scrapy.core.engine").setLevel("INFO")
+logging.getLogger("pdfminer.psparser").setLevel("INFO")
+logging.getLogger("pdfminer.pdfdocument").setLevel("INFO")
+logging.getLogger("pdfminer.pdfparser").setLevel("INFO")
+logging.getLogger("pdfminer.pdfinterp").setLevel("INFO")
+logging.getLogger("pdfminer.cmapdb").setLevel("INFO")
+logging.getLogger("pdfminer.pdfpage").setLevel("INFO")
+logging.getLogger("pdfminer.encodingdb").setLevel("INFO")
+logging.getLogger("pdfminer.converter").setLevel("INFO")
+
+
+
 
 
 # TODO README
