@@ -20,8 +20,8 @@ if not exists(PDF_TEMP_DIR_PATH):
     makedirs(PDF_TEMP_DIR_PATH)
 
 
-def get_pdf_content_from_text_ocr(filename: str, bounding_func=None, search_text: list = []) -> Iterator[str]:
-    images = convert_from_path(filename, poppler_path=POPPLER_PATH)
+def get_pdf_content_from_text_ocr(filename: str, bounding_func=None, search_text: list = [], dpi=200) -> Iterator[str]:
+    images = convert_from_path(filename, dpi=dpi, poppler_path=POPPLER_PATH)
 
     if search_text:
         processable_pages = get_pages_where_found(filename, search_text)
