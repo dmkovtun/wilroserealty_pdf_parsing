@@ -10,7 +10,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from time import sleep
-
+from google.auth.exceptions import RefreshError
+from os import remove
 # TODO
 
 # The ID and range of a sample spreadsheet.
@@ -29,14 +30,14 @@ class GoogleSheetsClient:
     sheet_name = " A/B $5MM+ through 11/3"
     range_name = f"{sheet_name}!A1:AM1"
     _loaded_sheet = None
+    logger: logging.Logger
 
     def __init__(self, token_path, credentials_path):
         self.token_path = token_path
         self.credentials_path = credentials_path
-        pass
+        self.logger = logging.getLogger(__name__.split(".")[-1])
         self.authorize()
         self.load_header()
-        self.logger = logging.getLogger(__name__.split(".")[-1])
         self.service
 
     def authorize(self):
@@ -49,7 +50,13 @@ class GoogleSheetsClient:
         # If there are no (valid) credentials available, let the user log in.
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
+                try:
+                    creds.refresh(Request())
+                except RefreshError:
+                    self.logger.warning("Google API OAuth2 token expired. Will create new one.")
+                    remove(self.token_path)
+                    self.authorize()
+                    return
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(self.credentials_path, self.SCOPES)
                 creds = flow.run_local_server(port=0)
