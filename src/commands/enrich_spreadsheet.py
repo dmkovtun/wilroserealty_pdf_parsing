@@ -19,7 +19,8 @@ from scrapy.utils.project import get_project_settings
 from os import remove
 import json
 
-from utils.pdf_parser.pdf_parser import PdfParser
+from utils.pdf_parsers.pdf_parser_ab import PdfParserAB
+from utils.pdf_parsers.pdf_parser_d import PdfParserD
 
 
 class EnrichSpreadsheet(BaseCommand):
@@ -30,7 +31,8 @@ class EnrichSpreadsheet(BaseCommand):
         self.project_settings = get_project_settings()
         self.logger = logging.getLogger(self.__class__.__name__)
         self.sheets_process: GoogleSheetsClient
-        self.pdf_parser = PdfParser()
+        self.pdf_parser_ab = PdfParserAB()
+        self.pdf_parser_d = PdfParserD()
 
     def init(self):
         """Init method for all resource-consuming things"""
@@ -147,18 +149,152 @@ class EnrichSpreadsheet(BaseCommand):
             new_cases.append(case)
         return new_cases
 
-    def run(self, args, opts):
-        self.args = args
-        self.opts = opts
 
-        is_debug_run = False
-        # TODO THIS IS FOR DEBUG ONLY
-        if is_debug_run:
-            with open("debug_cases.pickle", "rb") as handle:
-                cases = pickle.load(handle)
+    def _run_debug_processing(self,):
+        with open("debug_cases_schedule_d.pickle", "rb") as handle:
+            cases = pickle.load(handle)
 
-            processable_cases = ["9:22-bk-90090"]
+            # processable_cases = ["9:22-bk-90090"]
             # processable_cases = [c.case_number for c in cases]
+
+            schedule_ab_debug_cases = [
+                "1:21-bk-11444",
+                "9:22-bk-90090",
+                "1:22-bk-10426",
+                "1:22-bk-10392",
+                "1:22-bk-10391",
+                "1:22-bk-10390",
+                "1:22-bk-10388",
+                "1:22-bk-10387",
+                "1:22-bk-10386",
+                "1:22-bk-10385",
+                "5:21-bk-40768",
+                "1:22-bk-10776",
+                "5:22-bk-40446",
+                "5:22-bk-50104",
+                "8:22-bk-70312",
+                "9:22-bk-90116",
+                "9:22-bk-90059",
+                "2:22-bk-14165",
+                "1:22-bk-10047",
+                "1:22-bk-10400",
+                "9:22-bk-90066",
+                "1:22-bk-10799",
+                "1:22-bk-10910",
+                "2:22-bk-14634",
+                "1:22-bk-10032",
+                "1:22-bk-10766",
+                "3:21-bk-33760",
+                "2:22-bk-14708",
+                "9:22-bk-90128",
+                "3:22-bk-02268",
+                "9:22-bk-10622",
+                "1:22-bk-10882",
+                "2:22-bk-14049",
+                "2:22-bk-20135",
+                "2:22-bk-16175",
+                "5:22-bk-30296",
+                "2:22-bk-14917",
+                "9:22-bk-10384",
+                "1:22-bk-10036",
+                "1:22-bk-10043",
+                "1:21-bk-43124",
+                "1:21-bk-11437",
+                "1:22-bk-10778",
+                "3:22-bk-30259",
+            ]
+            schedule_d_debug_cases = [
+                "9:22-bk-90090",
+                "1:22-bk-10426",
+                "5:21-bk-40768",
+                "1:22-bk-10776",
+                "1:22-bk-10278",
+                "1:22-bk-10929",
+                "1:22-bk-10239",
+                "5:22-bk-40446",
+                "5:22-bk-50104",
+                "8:22-bk-70312",
+                "6:21-bk-11110",
+                "9:22-bk-90116",
+                "9:22-bk-90059",
+                "1:22-bk-10794",
+                "1:22-bk-10400",
+                "9:22-bk-90066",
+                "1:22-bk-10799",
+                "1:22-bk-10910",
+                "2:22-bk-14634",
+                "1:22-bk-10766",
+                "2:22-bk-14708",
+                "9:22-bk-90128",
+                "3:22-bk-02268",
+                "3:22-bk-00971",
+                "9:22-bk-10622",
+                "1:22-bk-10882",
+                "2:22-bk-14049",
+                "2:22-bk-20135",
+                "2:22-bk-16175",
+                "2:22-bk-14917",
+                "1:21-bk-43124",
+                "1:22-bk-02890",
+                "1:21-bk-11437",
+                "1:22-bk-10778",
+                "1:22-bk-10522",
+                "4:21-bk-01648",
+                "3:22-bk-30681",
+                "2:22-bk-14866",
+                "1:22-bk-10146",
+                "1:22-bk-40563",
+                "1:22-bk-57056",
+                "1:22-bk-10037",
+                "1:22-bk-10039",
+                "1:22-bk-10043",
+                "1:22-bk-10036",
+                "1:22-bk-10031",
+                "1:22-bk-10038",
+                "1:22-bk-10029",
+                "1:22-bk-10044",
+                "1:22-bk-10040",
+                "1:22-bk-10035",
+                "1:22-bk-10030",
+                "3:22-bk-10053",
+                "1:22-bk-40342",
+                "2:22-bk-20790",
+                "1:22-bk-40736",
+                "1:22-bk-10351",
+                "3:22-bk-01075",
+                "8:22-bk-70914",
+                "3:22-bk-31362",
+                "1:22-bk-10355",
+                "8:22-bk-80000",
+                "1:22-bk-12558",
+                "3:22-bk-01282",
+                "1:22-bk-10763",
+                "1:22-bk-10582",
+                "2:22-bk-20220",
+                "3:21-bk-30208",
+                "2:22-bk-14234",
+                "2:22-bk-11824",
+                "4:22-bk-35425",
+                "1:22-bk-10505",
+                "5:22-bk-50314",
+                "1:22-bk-10134",
+                "2:22-bk-20632",
+                "2:22-bk-14481",
+                "1:22-bk-10004",
+                "2:22-bk-14961",
+                "1:22-bk-11941",
+                "1:22-bk-58302",
+                "4:22-bk-42618",
+                "2:22-bk-20244",
+                "2:22-bk-20192",
+                "1:22-bk-10381",
+                "0:22-bk-17842",
+                "6:22-bk-03729",
+            ]
+            # processable_cases = schedule_d_debug_cases
+            # processable_cases = ['1:22-bk-10037']
+            processable_cases = [c.case_number for c in cases]
+            processable_cases = ["2:22-bk-11824"]
 
             required_cases = []
             for c in cases:
@@ -166,6 +302,7 @@ class EnrichSpreadsheet(BaseCommand):
                     required_cases.append(c)
 
             cases = required_cases
+            # cases = cases[:50]
 
             for index, case in enumerate(cases):
                 self.logger.info(f"Processing case {index+1} of {len(cases)}")
@@ -173,7 +310,7 @@ class EnrichSpreadsheet(BaseCommand):
                     self.logger.debug("Skipped case processing, but will update status")
                 # NOTE: This is not usual way
                 self.process_files(case)
-                # self.logger.debug(json.dumps(case.__dict__, indent=4, default=str))
+
                 if case.case_status != CaseStatus.processing_failed:
                     self.update_case(case)
                 else:
@@ -181,41 +318,64 @@ class EnrichSpreadsheet(BaseCommand):
 
                 self.logger.debug(json.dumps(case.__dict__, indent=4, default=str))
 
-        if not is_debug_run:
-            cases: List[Case] = self.load_cases()
 
-            self.logger.info(f"Received {len(cases)} cases from Google Sheet")
-            self.logger.info("Starting processing case statuses")
-            # cases = self.filter_cases_by_orig_status(cases)
-            # TODO REMOVE
-            #cases = cases[:10]
+    def run(self, args, opts):
+        self.args = args
+        self.opts = opts
 
-            #processable_cases = ["5:22-bk-00056"]
-            processable_cases = [c.case_number for c in cases]
+        # TODO THIS IS FOR DEBUG ONLY
+        is_debug_run = True
+        if is_debug_run:
+            self._run_debug_processing()
+        else:
+            self.regular_run()
 
-            required_cases = []
-            for c in cases:
-                if c.case_number in processable_cases:
-                    required_cases.append(c)
+    def regular_run(self):
+        cases: List[Case] = self.load_cases()
 
-            cases = required_cases
+        self.logger.info(f"Received {len(cases)} cases from Google Sheet")
+        self.logger.info("Starting processing case statuses")
+        # cases = self.filter_cases_by_orig_status(cases)
+        # TODO REMOVE
+        # cases = cases[:10]
 
-            self.logger.info(f"Will process {len(cases)} cases after filtering by status")
-            self.process_cases(cases)
+        # processable_cases = ["5:22-bk-00056"]
+        processable_cases = [c.case_number for c in cases]
+        # processable_cases = [c.case_number for c in cases]
+        # processable_cases = schedule_d_debug_cases
 
-            if not cases:
-                self.logger.info("Will skip next steps, as cases were filtered out")
-                return
+        required_cases = []
+        for c in cases:
+            if c.case_number in processable_cases:
+                required_cases.append(c)
 
-            reactor.run()
+        cases = required_cases
 
-            with open("debug_cases.pickle", "wb") as handle:
-                pickle.dump(cases, handle)
+        self.logger.info(f"Will process {len(cases)} cases after filtering by status")
+        self.process_cases(cases)
+
+        if not cases:
+            self.logger.info("Will skip next steps, as cases were filtered out")
+            return
+
+        reactor.run()  # type: ignore
+        # with open("debug_cases_schedule_d______.pickle", "wb") as handle:
+        #     pickle.dump(cases, handle)
 
     def clear_cached_files(self, case: Case) -> None:
         for _, file_path in case.files.items():
             remove(file_path)
             self.logger.debug(f"Removed file {file_path}")
+
+    def _process_pdf(self, case, func, file_field_name: str, result_field_name: str):
+        try:
+            if file_field_name in case.files:
+                pdf_file_data = func(case.files[file_field_name])
+                case.enrichable_values[result_field_name] = pdf_file_data
+            else:
+                self.logger.debug(f"Case {file_field_name}: missing file {file_field_name}")
+        except Exception as err:
+            return f"Case {file_field_name}: {file_field_name} parsing: {str(err)}"
 
     def process_files(self, case: Case):
         # 2. Attorney emails fillup (columns AJ, AK)
@@ -223,7 +383,6 @@ class EnrichSpreadsheet(BaseCommand):
         # Get data from column K (Attorneys): it has a csv file inside and contains same emails
         error_msgs = []
         try:
-
             try:
                 attorney_email, other_attorney_emails, gov_emails = self.attorney_csv_parsing(case)
                 case.enrichable_values["attorney_email"] = attorney_email
@@ -232,32 +391,30 @@ class EnrichSpreadsheet(BaseCommand):
             except Exception as err:
                 error_msgs.append(f"Attorneys.csv file parsing: {str(err)}")
 
-            try:
-                schedule_a_b_data = self.pdf_parser.schedule_a_b_parsing(case.files["url_schedule_a_b"])
-                case.enrichable_values["schedule_a_b_rows"] = schedule_a_b_data
-            except Exception as err:
-                error_msgs.append(f"Schedule A/B parsing: {str(err)}")
+            r = self._process_pdf(case, self.pdf_parser_ab.schedule_a_b_parsing, "url_schedule_a_b", "schedule_a_b_rows")
+            error_msgs.append(r)
 
             try:
                 case.enrichable_values["addresses"] = self._process_addresses(case)
             except Exception as err:
                 error_msgs.append(f"Address parsing: {str(err)}")
 
-            try:
-                schedule_d_data = self.pdf_parser.schedule_d_parsing(case.files["url_schedule_d"])
-                case.enrichable_values["schedule_d_rows"] = schedule_d_data
-            except Exception as err:
-                error_msgs.append(f"Schedule D parsing: {str(err)}")
+            r = self._process_pdf(case, self.pdf_parser_d.schedule_d_parsing, "url_schedule_d", "schedule_d_rows")
+            error_msgs.append(r)
 
         except Exception as err:
             error_msgs.append(f"Case data parsing: {str(err)}")
+
+        error_msgs = [p for p in error_msgs if p]
         if error_msgs:
             all_msgs = "\n".join(error_msgs)
             self.logger.error(f"Case '{case.case_number}': Failed to process case: {all_msgs}")
             case.case_status = CaseStatus.processing_failed
 
-    def _get_dict_formatted(self, case: Case, field_name: str) -> str:
+    def _get_dict_formatted(self, case: Case, field_name: str, file_field_name:str) -> str:
         if not case.enrichable_values.get(field_name):
+            if not case.files.get(file_field_name):
+                return ''
             self.logger.error(f"Case '{case.case_number}': Failed to parse due to empty value: {field_name}")
             return ""
         try:
@@ -269,37 +426,42 @@ class EnrichSpreadsheet(BaseCommand):
     def _process_addresses(self, case: Case):
         if case.enrichable_values.get("schedule_a_b_rows"):
             addresses = [
-                get_parsed_address(v["address"]) for k, v in case.enrichable_values["schedule_a_b_rows"].items()
+                get_parsed_address(str(v.get("address", "")))
+                for _, v in case.enrichable_values["schedule_a_b_rows"].items()
             ]
             return "\n".join(addresses)
         return ""
 
     def _check_possible_failure(self, case: Case):
         addr = self._process_addresses(case)
-        ab_data = self._get_dict_formatted(case, "schedule_a_b_rows")
-        d_data = self._get_dict_formatted(case, "schedule_d_rows")
+        ab_data = self._get_dict_formatted(case, "schedule_a_b_rows", 'url_schedule_a_b')
+        d_data = self._get_dict_formatted(case, "schedule_d_rows", 'url_schedule_d')
         if not all((addr, ab_data, d_data)):
+            if not d_data and not case.url_schedule_d:
+                # OK
+                return
+            if not ab_data and not case.url_schedule_a_b:
+                # OK
+                return
+
             case.case_status = CaseStatus.possible_failure
 
     def _prepare_case_data(self, case: Case) -> List[str]:
-        # "Status","Creditor Notes","Borrower Notes","Property Notes","ADDRESS","Attorney Email","Other Attorney Emails"
+        # Status","Creditor Notes","Borrower Notes","Property Notes","ADDRESS","Attorney Email","Other Attorney Emails
         self._check_possible_failure(case)
-
         _mapping = {
             "Status": case.case_status.value,
-            "Creditor Notes": self._get_dict_formatted(case, "schedule_d_rows"),
+            "Creditor Notes": self._get_dict_formatted(case, "schedule_d_rows", 'url_schedule_d'),
             "Borrower Notes": "",
-            "Property Notes": self._get_dict_formatted(case, "schedule_a_b_rows"),
+            "Property Notes": self._get_dict_formatted(case, "schedule_a_b_rows", 'url_schedule_a_b'),
             "ADDRESS": case.enrichable_values["addresses"],
             "Attorney Email": case.enrichable_values["attorney_email"],
             "Other Attorney Emails": case.enrichable_values["other_attorney_emails"],
             "Gov Attorney Emails": case.enrichable_values["gov_attorney_emails"],
         }
-
         return [v for k, v in _mapping.items()]
 
     def update_case(self, case: Case):
-        # Status","Creditor Notes","Borrower Notes","Property Notes","ADDRESS","Attorney Email","Other Attorney Emails
         self.logger.info(f"Case '{case.case_number}': Updating case rows")
         try:
             prepared_values = self._prepare_case_data(case)
@@ -356,7 +518,6 @@ class EnrichSpreadsheet(BaseCommand):
         len_cases = len(cases)
 
         def update_case_fields(result: Case, case: Case, case_index):
-            # TODO DEBUG THIS
             self.logger.info(f"Processing case {case_index} of {len_cases}")
             try:
                 case.case_status = result.case_status
@@ -369,8 +530,8 @@ class EnrichSpreadsheet(BaseCommand):
                 self.process_files(case)
             except Exception as err:
                 self.logger.error(f"Case '{case.case_number}': Failed to fetch data from PW: {str(err)}")
-            # TODO CHECK IF IT WAS INVOKED
-            # self.process_files(case)
+
+            self.process_files(case)
             if case.case_status != CaseStatus.processing_failed:
                 self.update_case(case)
             else:
