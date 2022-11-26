@@ -11,6 +11,7 @@ from PIL import Image
 from pytesseract import pytesseract
 from scrapy.utils.project import get_project_settings
 from typing import List
+
 # from PyPDF2 import PdfReadError
 
 
@@ -142,4 +143,4 @@ def _generate_text_from_images(file_path: str) -> Iterator[str]:
     data = pytesseract.image_to_string(file_path, lang="eng", config="-c preserve_interword_spaces=1")
     # TODO UNCOMMENT
     os.remove(file_path)
-    yield from data.splitlines()
+    yield data
