@@ -15,6 +15,7 @@ from commands.base.base_command import BaseCommand
 from spiders.case_status_spider import CaseStatusSpider
 from spiders.pw_status_check_spider import PWStatusCheckSpider
 from utils.case import Case
+from utils.case_enrichment_status import CaseEnrichmentStatus
 from utils.case_status import CaseStatus
 from utils.get_parsed_address import get_parsed_address
 from utils.google_sheets.google_sheets_client import GoogleSheetsClient
@@ -132,7 +133,7 @@ class EnrichSpreadsheet(BaseCommand):
             self.logger.error(
                 f"Case '{case.case_number}': Got an error while enriching case via PW: {str(err)}"
             )
-            case.case_status = CaseStatus.processing_failed
+            case.enrichment_status = CaseEnrichmentStatus.processing_failed
             # No need to process more
 
         return case
@@ -163,12 +164,12 @@ class EnrichSpreadsheet(BaseCommand):
             cases = required_cases
             for index, case in enumerate(cases):
                 self.logger.info(f"Processing case {index+1} of {len(cases)}")
-                if case.case_status == CaseStatus.processing_failed:
+                if case.enrichment_status == CaseEnrichmentStatus.processing_failed:
                     self.logger.debug("Skipped case processing, but will update status")
                 # NOTE: This is not usual way
                 self.process_files(case)
 
-                if case.case_status != CaseStatus.processing_failed:
+                if case.enrichment_status != CaseEnrichmentStatus.processing_failed:
                     self.update_case(case)
                 else:
                     self.update_case_status(case)
@@ -273,7 +274,7 @@ class EnrichSpreadsheet(BaseCommand):
         if error_msgs:
             all_msgs = "\n".join(error_msgs)
             self.logger.error(f"Case '{case.case_number}': Failed to process case: {all_msgs}")
-            case.case_status = CaseStatus.processing_failed
+            case.enrichment_status = CaseEnrichmentStatus.processing_failed
 
     def _get_dict_formatted(self, case: Case, field_name: str, file_field_name: str) -> str:
         if not case.enrichable_values.get(field_name):
@@ -314,7 +315,9 @@ class EnrichSpreadsheet(BaseCommand):
                 # OK
                 return
 
-            case.case_status = CaseStatus.possible_failure
+            case.enrichment_status = CaseEnrichmentStatus.possible_failure
+            return
+        case.enrichment_status = CaseEnrichmentStatus.success
 
     def _prepare_case_data(self, case: Case) -> List[str]:
         # Status","Creditor Notes","Borrower Notes","Property Notes","ADDRESS","Attorney Email","Other Attorney Emails
@@ -330,6 +333,7 @@ class EnrichSpreadsheet(BaseCommand):
             "Attorney Email": case.enrichable_values["attorney_email"],
             "Other Attorney Emails": case.enrichable_values["other_attorney_emails"],
             "Gov Attorney Emails": case.enrichable_values["gov_attorney_emails"],
+            "Enrichment Status": case.enrichment_status.value,
         }
         return [v for k, v in _mapping.items()]
 
@@ -348,13 +352,14 @@ class EnrichSpreadsheet(BaseCommand):
             self.logger.error(
                 f"Case '{case.case_number}': Failed to prepare case for update: {str(err)}"
             )
-            case.case_status = CaseStatus.processing_failed
+            case.enrichment_status = CaseEnrichmentStatus.processing_failed
             self.update_case_status(case)
 
     def update_case_status(self, case: Case):
         self.logger.info(f"Case '{case.case_number}': Updating case status")
         _mapping = {
             "Status": case.case_status.value,
+            "Enrichment Status": case.enrichment_status.value,
         }
         prepared_values = [v for k, v in _mapping.items()]
         start_column = "Status"
@@ -399,7 +404,7 @@ class EnrichSpreadsheet(BaseCommand):
             try:
                 case.case_status = result.case_status
                 case.files["url_attorney"] = result.files["url_attorney"]
-                if case.case_status == CaseStatus.processing_failed:
+                if case.enrichment_status == CaseEnrichmentStatus.processing_failed:
                     self.logger.debug("Skipped case processing, but will update status")
                     self.update_case_status(case)
                     # continue
@@ -411,7 +416,7 @@ class EnrichSpreadsheet(BaseCommand):
                 )
 
             self.process_files(case)
-            if case.case_status != CaseStatus.processing_failed:
+            if case.enrichment_status != CaseEnrichmentStatus.processing_failed:
                 self.update_case(case)
             else:
                 self.update_case_status(case)

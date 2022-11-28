@@ -1,7 +1,10 @@
+from .case_enrichment_status import CaseEnrichmentStatus
 from .case_status import CaseStatus
 
 
 class Case:
+    enrichment_status: CaseEnrichmentStatus = CaseEnrichmentStatus.not_processed
+
     case_row_number: int
     case_status_original: str
     case_number: str
