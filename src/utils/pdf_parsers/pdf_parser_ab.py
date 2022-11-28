@@ -338,8 +338,8 @@ class PdfParserAB(PdfParser):
                         address = "".join(reversed(address)).split("65", maxsplit=1)[-1]
                         address = "".join(reversed(address))
                     if "Software Copyright (c)" in address or "Software Copyright (c)" in address:
-                        print(f"Skipping row {address}")
-                        continue
+                        address = address.split("Official Form")[0]
+
                     parsed_address = address.replace("   ", " ").replace("  ", " ")
                     for word in [
                         "Fee",
