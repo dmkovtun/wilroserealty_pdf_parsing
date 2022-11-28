@@ -26,11 +26,12 @@ Then you'll need to set .env variables for installed apps.
 
 # Environment
 
-Copy `.env.example` file and rename it to `.env`
+Copy `.env.example` file and rename it to `.env`.
+
 Then specify following settings:
 - `POPPLER_PATH` - provide a path to installed poppler
 - `TESSERACT_PATH` - provide a path to installed tesseract
-- `SPREADSHEET_ID` - value in spreadsheet url after 'https://docs.google.com/spreadsheets/d/`{ID OF SPREADSHEET}`/edit#gid='
+- `SPREADSHEET_ID` - value in spreadsheet url after 'https://docs.google.com/spreadsheets/d/`{THIS ID}`/edit#gid='
 - `SHEET_NAME` - name of sheet to be read and edited
 - `HEADER_RANGE_NAME` - range of sheet header row, like `A1:AW1`
 
@@ -51,11 +52,13 @@ Install poetry:
 
 Create virtual environment (run following commands from inside `src` directory)
 > poetry install
+
+Install playwright browsers (required):
 > poetry run playwright install
 
 
 # Usage
-From inside `src` directory, run script `enrich_spreadsheet.py` by double clicking it or
+From inside `src` directory, run script `enrich_spreadsheet.py` by double clicking it or running from terminal:
 > python enrich_spreadsheet.py
 
 Note, that first run will require google account authorization with your default browser.
@@ -81,6 +84,4 @@ Take only first two columns.
 In section 'List Creditors Who Have Secured Claims'
 Get "Creditor's Name" from rows '2.{X}'
 Also get "Creditor's mailing address"
-
-(not decided yet): Save to 'Creditors Info' column. Maybe will need two columns
-
+Save to 'Creditors Info' column.
