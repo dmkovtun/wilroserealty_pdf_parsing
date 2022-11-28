@@ -13,7 +13,6 @@ from utils.pdf_parsers.pdf_parser import PdfParser
 
 class PdfParserD(PdfParser):
     cases_by_file_type = defaultdict(list)
-    cases_by_file_type_ab = defaultdict(list)
 
     def __init__(self) -> None:
         self.logger = logging.getLogger(__name__.split(".")[-1])
@@ -34,9 +33,7 @@ class PdfParserD(PdfParser):
         all_text = " ".join(get_pdf_content_ocr(filename, crop_image, dpi=400))
         clear_data = {}
 
-        all_text = (
-            all_text.replace("\n", " ").replace("’", "'").replace("maiting", "mailing")
-        )
+        all_text = all_text.replace("\n", " ").replace("’", "'").replace("maiting", "mailing")
         ind = 1
 
         def clear_value(string):
@@ -92,9 +89,7 @@ class PdfParserD(PdfParser):
         all_text = " ".join(get_pdf_content_ocr(filename, crop_image, dpi=400))
         clear_data = {}
 
-        all_text = (
-            all_text.replace("\n", " ").replace("’", "'").replace("maiting", "mailing")
-        )
+        all_text = all_text.replace("\n", " ").replace("’", "'").replace("maiting", "mailing")
         ind = 1
 
         def clear_value(string):
@@ -282,9 +277,9 @@ class PdfParserD(PdfParser):
         extracted_rows = {}
         boundaries = {"left": 45, "bottom": 80, "right": 180, "top": 792 - 40}
 
-        all_text = " ".join(
-            [l for l in get_pdf_content_pdfium(filename, 0, boundaries)]
-        ).replace("\n", "")
+        all_text = " ".join([l for l in get_pdf_content_pdfium(filename, 0, boundaries)]).replace(
+            "\n", ""
+        )
         pattern = re.compile(
             r"2\.(\d+)(.*?)Creditor(?:'|Æ)s Name(.*?)Creditor(?:'|Æ)s mailing address"
         )
@@ -307,9 +302,9 @@ class PdfParserD(PdfParser):
         extracted_rows = {}
         boundaries = {"left": 30, "bottom": 80, "right": 180, "top": 792 - 40}
 
-        all_text = " ".join(
-            [l for l in get_pdf_content_pdfium(filename, 0, boundaries)]
-        ).replace("\n", "")
+        all_text = " ".join([l for l in get_pdf_content_pdfium(filename, 0, boundaries)]).replace(
+            "\n", ""
+        )
         pattern = re.compile(
             r"2\.(\d+)(.*?)Creditor.?s Name(.*?)Creditor.?s mailing address",
             re.IGNORECASE,
@@ -328,9 +323,9 @@ class PdfParserD(PdfParser):
         extracted_rows = {}
         boundaries = {"left": 30, "bottom": 80, "right": 190, "top": 792 - 40}
 
-        all_text = " ".join(
-            [l for l in get_pdf_content_pdfium(filename, 0, boundaries)]
-        ).replace("\n", "")
+        all_text = " ".join([l for l in get_pdf_content_pdfium(filename, 0, boundaries)]).replace(
+            "\n", ""
+        )
         pattern = re.compile(
             r"2\.(\d+).?.?Creditor.?s Name(.*?)Creditor.?s mailing address(.*?)Creditor.?s",
             re.IGNORECASE,
@@ -415,9 +410,7 @@ class PdfParserD(PdfParser):
             for page_index in range(len(pdf.pages)):
                 curr_page = pdf.pages[page_index]
                 bounding_box = (20, 40, 220, int(curr_page.height) - 40)
-                cropped_page = curr_page.within_bbox(
-                    bounding_box, relative=False, strict=True
-                )
+                cropped_page = curr_page.within_bbox(bounding_box, relative=False, strict=True)
                 pdf_str = cropped_page.extract_text(use_text_flow=True)
 
                 while "_" in pdf_str:
@@ -580,7 +573,5 @@ class PdfParserD(PdfParser):
             return extracted_rows
         except Exception as err:
 
-            self.logger.error(
-                f"schedule d file {filename}: parsing failed due to {str(err)}"
-            )
+            self.logger.error(f"schedule d file {filename}: parsing failed due to {str(err)}")
         return {}

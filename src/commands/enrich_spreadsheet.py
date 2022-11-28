@@ -185,6 +185,15 @@ class EnrichSpreadsheet(BaseCommand):
         else:
             self.regular_run()
 
+        self.logger.debug("self.pdf_parser_ab.cases_by_file_type")
+        self.logger.debug(
+            json.dumps(dict(self.pdf_parser_ab.cases_by_file_type, indent=4, default=str))
+        )
+        self.logger.debug("\n\nself.pdf_parser_d.cases_by_file_type")
+        self.logger.debug(
+            json.dumps(dict(self.pdf_parser_d.cases_by_file_type, indent=4, default=str))
+        )
+
     def regular_run(self):
         cases: List[Case] = self.load_cases()
 

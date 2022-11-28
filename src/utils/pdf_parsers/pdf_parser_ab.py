@@ -13,7 +13,6 @@ from utils.pdf_parsers.pdf_parser import PdfParser
 
 class PdfParserAB(PdfParser):
     cases_by_file_type = defaultdict(list)
-    cases_by_file_type_ab = defaultdict(list)
 
     def schedule_a_b_parsing_scan(self, filename: str):
         extracted_rows = {}
@@ -64,9 +63,7 @@ class PdfParserAB(PdfParser):
         all_text = " ".join(all_pages_text)
         all_text = all_text.replace("\n", " ")
 
-        pattern = re.compile(
-            r"55\.(\d+).+if available(.+?)(:?55|56)", re.MULTILINE | re.IGNORECASE
-        )
+        pattern = re.compile(r"55\.(\d+).+if available(.+?)(:?55|56)", re.MULTILINE | re.IGNORECASE)
         for match in re.finditer(pattern, all_text):
             groups = match.groups()
             group_name = groups[0]
@@ -108,9 +105,7 @@ class PdfParserAB(PdfParser):
                     part = list(part)
                     # TODO
                     if index > 190 and index < 345:
-                        lines[f'{int(part[0]["x0"])}:{index}'] = " ".join(
-                            [d["text"] for d in part]
-                        )
+                        lines[f'{int(part[0]["x0"])}:{index}'] = " ".join([d["text"] for d in part])
 
                     new_text += " ".join([d["text"] for d in part])
                     new_text += "\n"
@@ -159,9 +154,7 @@ class PdfParserAB(PdfParser):
     def schedule_ab_parsing_text_type_3(self, filename: str):
         extracted_rows = {}
         boundaries = {"left": 35, "bottom": 40, "right": 300, "top": 792 - 40}
-        all_text = "   ".join(
-            [line for line in get_pdf_content_pdfium(filename, 0, boundaries)]
-        )
+        all_text = "   ".join([line for line in get_pdf_content_pdfium(filename, 0, boundaries)])
         # print(all_text)
         main_pattern = re.compile(r"55\.(.*)5?6?.*Total of Part 9")
         all_text = re.search(main_pattern, all_text).group(1)
@@ -262,9 +255,7 @@ class PdfParserAB(PdfParser):
                     fee_type = " ".join(p[1:])
 
                     if extracted_rows.get(row_name):
-                        extracted_rows[row_name]["address"] += (
-                            " " + parsed_address.strip()
-                        )
+                        extracted_rows[row_name]["address"] += " " + parsed_address.strip()
                         extracted_rows[row_name]["fee_type"] += " " + fee_type.strip()
                     else:
                         extracted_rows[row_name] = {
@@ -313,9 +304,7 @@ class PdfParserAB(PdfParser):
                             fee_type = word + parsed_address.split(word)[-1]
                             parsed_address = parsed_address.split(word)[0]
                     if extracted_rows.get(row_name):
-                        extracted_rows[row_name]["address"] += (
-                            " " + parsed_address.strip()
-                        )
+                        extracted_rows[row_name]["address"] += " " + parsed_address.strip()
                         extracted_rows[row_name]["fee_type"] += " " + fee_type.strip()
                     else:
                         extracted_rows[row_name] = {
@@ -327,9 +316,7 @@ class PdfParserAB(PdfParser):
     def schedule_ab_parsing_text_type_1(self, filename: str):
         extracted_rows = {}
         boundaries = {"left": 10, "bottom": 40, "right": 300, "top": 792 - 40}
-        all_text = "   ".join(
-            [line for line in get_pdf_content_pdfium(filename, 0, boundaries)]
-        )
+        all_text = "   ".join([line for line in get_pdf_content_pdfium(filename, 0, boundaries)])
 
         main_pattern = re.compile(r"55\.(.*)5?6?.*Total of Part 9")
         all_text = re.search(main_pattern, all_text).group(1)
@@ -350,10 +337,7 @@ class PdfParserAB(PdfParser):
                     if address.endswith("56.") or address.endswith("56"):
                         address = "".join(reversed(address)).split("65", maxsplit=1)[-1]
                         address = "".join(reversed(address))
-                    if (
-                        "Software Copyright (c)" in address
-                        or "Software Copyright (c)" in address
-                    ):
+                    if "Software Copyright (c)" in address or "Software Copyright (c)" in address:
                         print(f"Skipping row {address}")
                         continue
                     parsed_address = address.replace("   ", " ").replace("  ", " ")
@@ -403,9 +387,7 @@ class PdfParserAB(PdfParser):
 
         all_text = ""
         for page_text in get_pdf_content_from_text_ocr(filename, crop_image):
-            if any(
-                ("Part 8" in page_text, "Part 9" in page_text, "Part 10" in page_text)
-            ):
+            if any(("Part 8" in page_text, "Part 9" in page_text, "Part 10" in page_text)):
                 all_text += page_text
             if "Part 10" in page_text:
                 break
@@ -594,9 +576,8 @@ class PdfParserAB(PdfParser):
             return type_signature
 
         file_type = discover_pdf_type_schedule_ab(filename)
-        self.cases_by_file_type_ab[file_type].append(filename)
+        self.cases_by_file_type[file_type].append(filename)
         self.logger.info("schedule_a_b_parsing")
-        self.logger.info(self.cases_by_file_type_ab)
 
         processing_funcs = {
             # "text": self.schedule_a_b_parsing_text,
@@ -615,12 +596,8 @@ class PdfParserAB(PdfParser):
             )
 
             # NOTE: Some type4 files have 'Is a depreciation schedule available for any of the property listed' text in output
-            art_msg = (
-                "Is a depreciation schedule available for any of the property listed"
-            )
-            type4_artifacts = [
-                art_msg in v["address"] for k, v in extracted_rows.items()
-            ]
+            art_msg = "Is a depreciation schedule available for any of the property listed"
+            type4_artifacts = [art_msg in v["address"] for k, v in extracted_rows.items()]
             if any(type4_artifacts):
                 extracted_rows = self.parse_pdf_file(
                     filename,
@@ -631,9 +608,7 @@ class PdfParserAB(PdfParser):
             extracted_rows = self.fix_schedule_ab_data(extracted_rows)
             return extracted_rows
         except Exception as err:
-            self.logger.error(
-                f"schedule ab file {filename}: parsing failed due to {str(err)}"
-            )
+            self.logger.error(f"schedule ab file {filename}: parsing failed due to {str(err)}")
         return {}
 
     def fix_schedule_ab_data(self, extracted_rows: dict) -> dict:
