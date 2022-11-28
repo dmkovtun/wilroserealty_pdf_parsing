@@ -352,7 +352,7 @@ class EnrichSpreadsheet(BaseCommand):
             prepared_values = self._prepare_case_data(case)
             # TODO Ideally somehow define these values
             start_column = "Status"
-            end_column = "Gov Attorney Emails"
+            end_column = "Enrichment Status"
 
             self.sheets_process.update_values(
                 case.case_row_number, start_column, end_column, [prepared_values]
@@ -366,15 +366,17 @@ class EnrichSpreadsheet(BaseCommand):
 
     def update_case_status(self, case: Case):
         self.logger.info(f"Case '{case.case_number}': Updating case status")
+        status_columns = ["Status", "Enrichment Status"]
         _mapping = {
             "Status": case.case_status.value,
             "Enrichment Status": case.enrichment_status.value,
         }
-        prepared_values = [v for k, v in _mapping.items()]
-        start_column = "Status"
-        self.sheets_process.update_values(
-            case.case_row_number, start_column, start_column, [prepared_values]
-        )
+        for column in status_columns:
+            prepared_values = [v for k, v in _mapping.items() if k == column]
+            start_column = column
+            self.sheets_process.update_values(
+                case.case_row_number, start_column, start_column, [prepared_values]
+            )
 
     def _return_empty_if_nan(self, line: str) -> str:
         line = str(line)
