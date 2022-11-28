@@ -13,11 +13,6 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-# TODO
-
-# The ID and range of a sample spreadsheet.
-# https://docs.google.com/spreadsheets/d/1Or-w7VFKGRI-eZ9w26JgLeG6z1rJxhJ783nJ0TOEisk/edit#gid=2088411805
-
 
 class GoogleSheetsClient:
 
@@ -26,16 +21,23 @@ class GoogleSheetsClient:
     credentials_path: str
     # If modifying these scopes, delete the file token.json.
     SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-
-    spreadsheet_id = "1Or-w7VFKGRI-eZ9w26JgLeG6z1rJxhJ783nJ0TOEisk"
-    sheet_name = " A/B $5MM+ through 11/3"
-    range_name = f"{sheet_name}!A1:AM1"
     _loaded_sheet = None
     logger: logging.Logger
 
-    def __init__(self, token_path, credentials_path):
+    # Received from settings
+    spreadsheet_id: str
+    sheet_name: str
+    header_range_name: str
+
+    def __init__(self, token_path, credentials_path, settings):
         self.token_path = token_path
         self.credentials_path = credentials_path
+
+        self.spreadsheet_id = settings.get("SPREADSHEET_ID")
+        self.sheet_name = settings.get("SHEET_NAME")
+        _range = settings.get("HEADER_RANGE_NAME")
+        self.header_range_name = f"{self.sheet_name}!{_range}"
+        #
         self.logger = logging.getLogger(__name__.split(".")[-1])
         self.authorize()
         self.load_header()
@@ -73,7 +75,8 @@ class GoogleSheetsClient:
         self.service = build("sheets", "v4", credentials=self.creds)
 
     def load_header(self):
-        self.sheet_header = self.read_rows(f"{self.sheet_name}!A1:AW1")[0]
+        self.logger.info(self.header_range_name)
+        self.sheet_header = self.read_rows(self.header_range_name)[0]
 
     def read_rows(self, range_name, is_load_formulas=False) -> List[list]:
         try:
@@ -85,39 +88,17 @@ class GoogleSheetsClient:
             if is_load_formulas:
                 value_render_option = "FORMULA"
 
-            # majorDimension='ROWS',
             result = self._loaded_sheet.values().get(
                 spreadsheetId=self.spreadsheet_id,
                 range=range_name,
                 valueRenderOption=value_render_option,
             )
-            # result.postproc = lambda x, y: y
             result = result.execute()
             rows_list = result.get("values", [])
 
             if not rows_list:
                 print("No data found.")
                 return []
-
-            # TODO remove this
-            # fixable_hyperlinks = ['View online', 'Download PDF', 'Download CSV']
-            # header_row = 1
-            # for column in rows_list:
-            #     for index, row in enumerate(column):
-            #         if row in fixable_hyperlinks:
-            #             curr_cell_row = header_row + index
-            #             # range_name
-            #             range_regex = r'.*\!(\w+):(\w+)'
-            #             import re
-            #             re_found = re.search(range_regex, range_name)
-            #             if re_found:
-            #                 start_range = re_found.group(1)
-            #                 end_range = re_found.group(2)
-            #                 print(f'start_range {start_range}')
-            #                 print(f'end_range {end_range}')
-            #             # request = service.spreadsheets().values().update(spreadsheetId=self.spreadsheet_id, range='range_', valueInputOption=value_input_option, body=value_range_body)
-            #             # response = request.execute()
-            #             # print(response)
 
             return rows_list
         except HttpError as err:
@@ -195,8 +176,9 @@ class GoogleSheetsClient:
         _range_end = f"{self.discover_column_from_name(end_col)}{row_idx}"
         return f"{_range_start}:{_range_end}"
 
-    def update_values(self, row_idx, start_col, end_col, values: List[list]):
-
+    def update_values(
+        self, row_idx: int, start_col: str, end_col: str, values: List[list]
+    ):
         if self._is_valid_range(start_col, end_col, values):
             updatable_range = self._get_range_cell(row_idx, start_col, end_col)
             self.logger.debug(
@@ -205,12 +187,12 @@ class GoogleSheetsClient:
             return self._update_values(updatable_range, values)
         return None
 
-    def _update_values(self, range_name, values: List[list]):
-        """_summary_
+    def _update_values(self, range_name: str, values: List[list]):
+        """Update values in range.
 
         Args:
-            range_name (_type_): _description_
-            values (_type_):
+            range_name (str): _description_
+            values (List[list]):
                     values = [
                         [
                             # Cell values ...

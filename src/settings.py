@@ -4,12 +4,12 @@ import logging
 import os
 from datetime import datetime, timedelta
 from distutils.util import strtobool
-from typing import Dict
 from os import getcwd
 from os.path import join
+from typing import Dict
 
-from scrapy.utils.log import configure_logging
 from dotenv import load_dotenv
+from scrapy.utils.log import configure_logging
 
 load_dotenv()
 
@@ -82,7 +82,9 @@ try:
 except ValueError:
     HTTPCACHE_ENABLED = False
 
-HTTPCACHE_IGNORE_HTTP_CODES = list(map(int, (s for s in os.getenv("HTTPCACHE_IGNORE_HTTP_CODES", "").split(",") if s)))
+HTTPCACHE_IGNORE_HTTP_CODES = list(
+    map(int, (s for s in os.getenv("HTTPCACHE_IGNORE_HTTP_CODES", "").split(",") if s))
+)
 
 EXTENSIONS = {}
 
@@ -99,7 +101,11 @@ if IS_SENTRY_ENABLED:
     EXTENSIONS["scrapy_sentry_sdk.extensions.SentryLogging"] = 1
 
 configure_logging()
-if datetime(*[int(number) for number in USER_AGENT_RELEASE_DATE.split("-")]) + timedelta(days=180) < datetime.now():
+if (
+    datetime(*[int(number) for number in USER_AGENT_RELEASE_DATE.split("-")])
+    + timedelta(days=180)
+    < datetime.now()
+):
     logging.warning("USER_AGENT is outdated")
 
 
@@ -110,7 +116,9 @@ def _process_relative_path(path: str):
 
 
 # Google Sheets API
-CREDENTIALS_PATH = _process_relative_path(os.getenv("CREDENTIALS_PATH", "../credentials"))
+CREDENTIALS_PATH = _process_relative_path(
+    os.getenv("CREDENTIALS_PATH", "../credentials")
+)
 TOKEN_PATH = join(CREDENTIALS_PATH, "token.json")
 CREDENTIALS_PATH = join(CREDENTIALS_PATH, "credentials.json")
 
@@ -129,14 +137,20 @@ logging.getLogger("pdfminer.encodingdb").setLevel("INFO")
 logging.getLogger("pdfminer.converter").setLevel("INFO")
 
 
-
-
-
 # TODO README
 # pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
 
 
-POPPLER_PATH = _process_relative_path(os.getenv("POPPLER_PATH", "../packages/poppler-0.68.0/bin"))
-TESSERACT_PATH = _process_relative_path(os.getenv("TESSERACT_PATH", "../packages/Tesseract-OCR/tesseract.exe"))
+POPPLER_PATH = _process_relative_path(
+    os.getenv("POPPLER_PATH", "../packages/poppler-0.68.0/bin")
+)
+TESSERACT_PATH = _process_relative_path(
+    os.getenv("TESSERACT_PATH", "../packages/Tesseract-OCR/tesseract.exe")
+)
 TEMP_DIR_PATH = _process_relative_path(os.getenv("TEMP_DIR_PATH", "../temp"))
 PDF_TEMP_DIR_PATH = join(TEMP_DIR_PATH, "pdf_parts")
+
+
+SPREADSHEET_ID = os.getenv("SPREADSHEET_ID", "REQUIRED")
+SHEET_NAME = os.getenv("SHEET_NAME", "REQUIRED")
+HEADER_RANGE_NAME = os.getenv("HEADER_RANGE_NAME", "REQUIRED")
