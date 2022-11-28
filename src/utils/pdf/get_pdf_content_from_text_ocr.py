@@ -1,14 +1,12 @@
+from os import getcwd, makedirs, remove
+from os.path import basename, dirname, exists, join
 from typing import Iterator, Optional
 
-from pikepdf import Pdf, PdfImage
-from PIL import Image
 import pytesseract
 from pdf2image import convert_from_path
-from os.path import join, dirname, exists
-from os import getcwd, remove, makedirs
-from scrapy.utils.project import get_project_settings
-from os.path import basename
+from pikepdf import Pdf, PdfImage
 from PIL import Image
+from scrapy.utils.project import get_project_settings
 
 from utils.pdf.get_pages_where_found import get_pages_where_found
 
@@ -20,7 +18,9 @@ if not exists(PDF_TEMP_DIR_PATH):
     makedirs(PDF_TEMP_DIR_PATH)
 
 
-def get_pdf_content_from_text_ocr(filename: str, bounding_func=None, search_text: list = [], dpi=200) -> Iterator[str]:
+def get_pdf_content_from_text_ocr(
+    filename: str, bounding_func=None, search_text: list = [], dpi=200
+) -> Iterator[str]:
     images = convert_from_path(filename, dpi=dpi, poppler_path=POPPLER_PATH)
 
     if search_text:
@@ -41,7 +41,9 @@ def get_pdf_content_from_text_ocr(filename: str, bounding_func=None, search_text
             title_image = bounding_func(image)
             title_image.save(_full_name, "JPEG")
 
-        data = pytesseract.image_to_string(_full_name, lang="eng", config="-c preserve_interword_spaces=1")
+        data = pytesseract.image_to_string(
+            _full_name, lang="eng", config="-c preserve_interword_spaces=1"
+        )
         remove(_full_name)
         yield data
     return

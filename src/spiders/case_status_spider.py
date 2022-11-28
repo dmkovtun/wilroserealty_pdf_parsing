@@ -1,9 +1,9 @@
 from typing import Iterator, List
-from scrapy import Spider, Request
 
-from utils.case import Case
+from scrapy import Request, Spider
 from scrapy.http import Response
 
+from utils.case import Case
 from utils.misc.get_full_filename import get_full_filename
 
 
@@ -38,7 +38,9 @@ class CaseStatusSpider(Spider):
                     meta={"dont_merge_cookies": True},
                 )
             else:
-                self.logger.warning(f"Case '{case.case_number}': Case is missing '{name}' file url")
+                self.logger.warning(
+                    f"Case '{case.case_number}': Case is missing '{name}' file url"
+                )
         else:
             return []
 

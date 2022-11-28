@@ -1,4 +1,5 @@
 import logging
+
 import pypdfium2 as pdfium
 
 logger = logging.getLogger(__name__.split(".")[-1])
@@ -12,7 +13,9 @@ def get_pages_where_found(filename, search_text: list = []):
             page = pdf[index]
             textpage = page.get_textpage()
             for part in search_text:
-                searcher = textpage.search(part, match_case=False, match_whole_word=False)
+                searcher = textpage.search(
+                    part, match_case=False, match_whole_word=False
+                )
                 first_occurrence = searcher.get_next()
                 if first_occurrence:
                     found_pages.append(index)

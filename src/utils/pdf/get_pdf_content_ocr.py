@@ -2,7 +2,7 @@ import logging
 import os
 from os import getcwd
 from os.path import basename, dirname, join
-from typing import Iterator
+from typing import Iterator, List
 
 import pytesseract
 from pdf2image import convert_from_path
@@ -10,7 +10,6 @@ from pikepdf import Pdf, PdfImage
 from PIL import Image
 from pytesseract import pytesseract
 from scrapy.utils.project import get_project_settings
-from typing import List
 
 # from PyPDF2 import PdfReadError
 
@@ -62,7 +61,9 @@ def convert_file_to_images_pike(filename: str) -> List[str]:
     return image_files
 
 
-def convert_file_to_images_poppler(filename: str, bounding_func=None, dpi=200) -> List[str]:
+def convert_file_to_images_poppler(
+    filename: str, bounding_func=None, dpi=200
+) -> List[str]:
     image_files = []
     images = convert_from_path(filename, dpi=dpi, poppler_path=POPPLER_PATH)
     for i in range(len(images)):
@@ -79,7 +80,9 @@ def convert_file_to_images_poppler(filename: str, bounding_func=None, dpi=200) -
     return image_files
 
 
-def get_pdf_content_ocr(filename: str, bounding_func, is_denoisable=False, dpi=200) -> Iterator[str]:
+def get_pdf_content_ocr(
+    filename: str, bounding_func, is_denoisable=False, dpi=200
+) -> Iterator[str]:
     """
         Reads images inside PDF file. Returns text from them.
 
@@ -140,7 +143,9 @@ def _denoise_image(file_path: str):
 
 
 def _generate_text_from_images(file_path: str) -> Iterator[str]:
-    data = pytesseract.image_to_string(file_path, lang="eng", config="-c preserve_interword_spaces=1")
+    data = pytesseract.image_to_string(
+        file_path, lang="eng", config="-c preserve_interword_spaces=1"
+    )
     # TODO UNCOMMENT
     os.remove(file_path)
     yield data

@@ -1,13 +1,12 @@
 import logging
+from random import randint
 from typing import Any, Dict
-from utils.case import Case
-from playwright.sync_api import sync_playwright
 
 from playwright._impl._api_types import Error as PWError
-from random import randint
-
+from playwright.sync_api import sync_playwright
 from scrapy.utils.project import get_project_settings
 
+from utils.case import Case
 from utils.misc.get_full_filename import get_full_filename
 
 
@@ -28,11 +27,15 @@ class PWStatusCheckSpider:
             },
         }
 
-    def get_page_html_playwright(self, url: str, selectors_to_wait_for: list = []) -> str:
+    def get_page_html_playwright(
+        self, url: str, selectors_to_wait_for: list = []
+    ) -> str:
         """Gets full html of page"""
         with sync_playwright() as p:
             browser_type = p.chromium
-            browser = browser_type.launch(headless=self.settings.get("PLAYWRIGHT_HEADLESS"))
+            browser = browser_type.launch(
+                headless=self.settings.get("PLAYWRIGHT_HEADLESS")
+            )
             context = browser.new_context(**self.get_new_context_params())
             page = context.new_page()
             page.goto(url)
@@ -44,7 +47,9 @@ class PWStatusCheckSpider:
                     self.logger.error(f"Failed to await for selector {selector}")
                     page_title = page.title()
                     if "just a moment" in page_title.lower():
-                        raise RuntimeError(f"Failed to bypass website security") from err
+                        raise RuntimeError(
+                            f"Failed to bypass website security"
+                        ) from err
 
             page.wait_for_load_state("domcontentloaded")
             html = page.content()
@@ -57,7 +62,9 @@ class PWStatusCheckSpider:
         filename = get_full_filename(case, field_name)
         with sync_playwright() as p:
             browser_type = p.chromium
-            browser = browser_type.launch(headless=self.settings.get("PLAYWRIGHT_HEADLESS"))
+            browser = browser_type.launch(
+                headless=self.settings.get("PLAYWRIGHT_HEADLESS")
+            )
 
             context = browser.new_context(**self.get_new_context_params())
             page = context.new_page()

@@ -1,13 +1,11 @@
 import logging
 from typing import Iterator, Tuple
 
-from PyPDF2 import PdfReader
 # from PyPDF2 import PdfReadError
 import pypdfium2 as pdfium
+from PyPDF2 import PdfReader
 
 logger = logging.getLogger(__name__.split(".")[-1])
-
-
 
 
 def get_pdf_content_fitz(filename: str) -> Iterator[str]:
@@ -20,6 +18,7 @@ def get_pdf_content_fitz(filename: str) -> Iterator[str]:
         Tuple[str, str]: Tuple of (content, error)
     """
     import fitz
+
     doc = fitz.open(filename)
     for page in doc:
         # do something with 'page'
@@ -33,11 +32,14 @@ def get_pdf_content_fitz(filename: str) -> Iterator[str]:
             # "xhtml": text information level as the TEXT version but includes images. Can also be displayed by internet browsers.
             # "xml": contains no images, but full position and font information down to each single text character. Use an XML module to interpret.
             import json
+
             # logger.info(json.dumps(page.get_text('blocks'), indent=4))
-            yield from [p[4] for p in page.get_text('blocks')]
+            yield from [p[4] for p in page.get_text("blocks")]
 
 
-def get_pdf_content_pdfium(filename: str, start_from: int = 0, boundaries: dict={}) -> Iterator[str]:
+def get_pdf_content_pdfium(
+    filename: str, start_from: int = 0, boundaries: dict = {}
+) -> Iterator[str]:
     """Returns all text available in PDF file.
 
     Args:
@@ -53,7 +55,7 @@ def get_pdf_content_pdfium(filename: str, start_from: int = 0, boundaries: dict=
             # width, height = page.get_size()
             # print(f'height {height}')
             textpage = page.get_textpage()
-            #print(boundaries)
+            # print(boundaries)
             text_part = textpage.get_text_bounded(**boundaries)
             yieldable_data = text_part.splitlines()
             # Attention: objects must be closed in correct order!

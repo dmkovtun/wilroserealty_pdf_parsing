@@ -12,8 +12,8 @@ from scrapy.utils.project import get_project_settings
 class BaseCommand(ScrapyCommand):
     def __init__(self):
         super().__init__()
-        #self.engine: Union[Engine, None] = None
-        #self.session: Union[Session, None] = None
+        # self.engine: Union[Engine, None] = None
+        # self.session: Union[Session, None] = None
         self.settings: Settings = get_project_settings()
         self.logger: Logger = logging.getLogger(name=self.__class__.__name__)
         self.stopped: bool = False
@@ -21,10 +21,10 @@ class BaseCommand(ScrapyCommand):
 
     def _init(self):
         # self.settings = get_project_settings()
-        #self.engine = create_engine(mysql_connection_string())
-        #self.session = Session(self.engine)
+        # self.engine = create_engine(mysql_connection_string())
+        # self.session = Session(self.engine)
 
-        #if not getattr(self, "logger", None):
+        # if not getattr(self, "logger", None):
         # self.logger = logging.getLogger(name=self.__class__.__name__)
 
         install_shutdown_handlers(self.signal_shutdown_handler, True)

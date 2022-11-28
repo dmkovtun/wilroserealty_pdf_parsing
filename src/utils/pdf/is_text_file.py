@@ -1,4 +1,5 @@
 import logging
+
 import pypdfium2 as pdfium
 
 logger = logging.getLogger(__name__)
