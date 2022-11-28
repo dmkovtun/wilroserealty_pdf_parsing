@@ -56,16 +56,12 @@ class GoogleSheetsClient:
                 try:
                     creds.refresh(Request())
                 except RefreshError:
-                    self.logger.warning(
-                        "Google API OAuth2 token expired. Will create new one."
-                    )
+                    self.logger.warning("Google API OAuth2 token expired. Will create new one.")
                     remove(self.token_path)
                     self.authorize()
                     return
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.credentials_path, self.SCOPES
-                )
+                flow = InstalledAppFlow.from_client_secrets_file(self.credentials_path, self.SCOPES)
                 creds = flow.run_local_server(port=0)
             # Save the credentials for the next run
             with open(self.token_path, "w") as token:
@@ -75,7 +71,7 @@ class GoogleSheetsClient:
         self.service = build("sheets", "v4", credentials=self.creds)
 
     def load_header(self):
-        self.logger.info(self.header_range_name)
+        self.logger.info(f"Loading header for range '{self.header_range_name}'")
         self.sheet_header = self.read_rows(self.header_range_name)[0]
 
     def read_rows(self, range_name, is_load_formulas=False) -> List[list]:
@@ -105,9 +101,7 @@ class GoogleSheetsClient:
             print(err)
         return []
 
-    def load_all_rows(
-        self, column_name_exc: str, is_load_formulas: bool = False
-    ) -> List[Any]:
+    def load_all_rows(self, column_name_exc: str, is_load_formulas: bool = False) -> List[Any]:
         found_rows = self.read_rows(
             f"{self.sheet_name}!{column_name_exc}2:{column_name_exc}", is_load_formulas
         )
@@ -128,9 +122,7 @@ class GoogleSheetsClient:
             return self.__colnames_cache[column_name]
         except KeyError:
 
-            cached_value = self.get_colnum_string(
-                int(self.sheet_header.index(column_name) + 1)
-            )
+            cached_value = self.get_colnum_string(int(self.sheet_header.index(column_name) + 1))
             self.__colnames_cache[column_name] = cached_value
             return self.__colnames_cache[column_name]
 
@@ -144,9 +136,7 @@ class GoogleSheetsClient:
             retries_count += 1
 
             seconds_to_sleep = 2
-            self.logger.debug(
-                f"Waiting for {seconds_to_sleep} seconds to get formulas loaded."
-            )
+            self.logger.debug(f"Waiting for {seconds_to_sleep} seconds to get formulas loaded.")
             sleep(seconds_to_sleep)
         raise RuntimeError(f"Failed to fetch all links for column '{column_name}'")
 
@@ -176,14 +166,10 @@ class GoogleSheetsClient:
         _range_end = f"{self.discover_column_from_name(end_col)}{row_idx}"
         return f"{_range_start}:{_range_end}"
 
-    def update_values(
-        self, row_idx: int, start_col: str, end_col: str, values: List[list]
-    ):
+    def update_values(self, row_idx: int, start_col: str, end_col: str, values: List[list]):
         if self._is_valid_range(start_col, end_col, values):
             updatable_range = self._get_range_cell(row_idx, start_col, end_col)
-            self.logger.debug(
-                f"Updating range [{updatable_range}] with values {values}"
-            )
+            self.logger.debug(f"Updating range [{updatable_range}] with values {values}")
             return self._update_values(updatable_range, values)
         return None
 
