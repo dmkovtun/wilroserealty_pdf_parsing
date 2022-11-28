@@ -80,7 +80,7 @@ def _parse_address(line: str) -> str:
 
 
 def _is_valid_address(line: str) -> bool:
-    _skip_list = ["See Attached Rider", ""]
+    _skip_list = ["See Attached Rider"]
     for p in _skip_list:
         if p in line:
             return False
@@ -89,17 +89,18 @@ def _is_valid_address(line: str) -> bool:
 
 
 def get_parsed_address(line_with_address: str) -> str:
+    if not line_with_address.strip():
+        return ""
+
     is_valid = _is_valid_address(line_with_address)
     if not is_valid:
         logger.debug(f"Address is not valid, will skip parsing: {line_with_address}")
         return ""
     processed_addr = _substring_from_address_text(line_with_address)
-    # TODO parse address like ''
+
     lines = [_parse_address(p) for p in processed_addr]
     lines = [l for l in lines if l.strip()]
 
-    if not lines:
-        return ""
     # Will return most frequent text
     counts = {item: lines.count(item) for item in lines}
     max_frequency = max([v for _, v in counts.items()])
@@ -108,7 +109,5 @@ def get_parsed_address(line_with_address: str) -> str:
 
 
 if __name__ == "__main__":
-    tmp = "Single Family Residence 6501 Brad Drive Huntington Beach, CA 92642 Value is an estimate from Ticor Online Pro"
-    res = get_parsed_address(tmp)
-
+    res = get_parsed_address("5755 Bayport Blvd. 5755 Bayport Blvd., Seabrook, TX 77586")
     print(res)
