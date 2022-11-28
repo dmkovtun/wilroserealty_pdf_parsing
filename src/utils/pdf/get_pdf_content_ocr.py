@@ -11,6 +11,8 @@ from PIL import Image
 from pytesseract import pytesseract
 from scrapy.utils.project import get_project_settings
 
+from utils.pdf.denoise_image import denoise_image
+
 # from PyPDF2 import PdfReadError
 
 
@@ -35,11 +37,7 @@ POPPLER_PATH = settings.get("POPPLER_PATH")
 TESSERACT_PATH = settings.get("TESSERACT_PATH")
 PDF_TEMP_DIR_PATH = str(settings.get("PDF_TEMP_DIR_PATH"))
 
-
-if os.name == "nt":
-    pytesseract.tesseract_cmd = TESSERACT_PATH
-else:
-    raise RuntimeError("Your OS is currently not supported")
+pytesseract.tesseract_cmd = TESSERACT_PATH
 
 
 def convert_file_to_images_pike(filename: str) -> List[str]:
@@ -92,60 +90,17 @@ def get_pdf_content_ocr(
     Returns:
         Iterator[str]: Yields str text for each PDF page.
     """
-    # logger.info(f'is_text_file(filename) {is_text_file(filename)}')
-    # image_files = convert_file_to_images_pike(filename)
-
-    # if not image_files:
     image_files = convert_file_to_images_poppler(filename, bounding_func, dpi=dpi)
     print(image_files)
     for file_path in image_files:
         if is_denoisable:
-            file_path = _denoise_image(file_path)
+            file_path = denoise_image(file_path)
         yield from _generate_text_from_images(file_path)
-
-
-def _denoise_image(file_path: str):
-    import cv2
-
-    image_bw = cv2.imread(file_path)
-    # dst_name = file_path + '_noiseless.tif'
-    # cv2.imwrite(dst_name, image_bw)
-    # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,2))
-    # morphology_img = cv2.morphologyEx(image_bw, cv2.MORPH_OPEN, kernel,iterations=1)
-    # # plt.imshow(,'Greys_r')
-    # cv2.imwrite(dst_name , morphology_img)
-
-    # convert to grayscale
-    gray = cv2.cvtColor(image_bw, cv2.COLOR_BGR2GRAY)
-
-    # blur
-    blur = cv2.GaussianBlur(gray, (0, 0), sigmaX=5, sigmaY=5)
-    # blur = cv2.GaussianBlur(gray, (0,0), sigmaX=5, sigmaY=5)
-
-    # divide
-    divide = cv2.divide(gray, blur, scale=255)
-
-    # otsu threshold
-    thresh = cv2.threshold(divide, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-
-    # apply morphology
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-
-    # write result to disk
-    cv2.imwrite(file_path + "_morph.jpg", morph)
-    updated_file = file_path + "_morph.jpg"
-    os.remove(file_path)
-
-    return updated_file
-
-    # noiseless_image_bw
 
 
 def _generate_text_from_images(file_path: str) -> Iterator[str]:
     data = pytesseract.image_to_string(
         file_path, lang="eng", config="-c preserve_interword_spaces=1"
     )
-    # TODO UNCOMMENT
     os.remove(file_path)
     yield data
