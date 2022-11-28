@@ -3,8 +3,7 @@ from collections import OrderedDict, defaultdict
 from itertools import groupby, islice, zip_longest
 
 import pdfplumber
-
-from temp_pdf_sampler_d import get_pages_where_found
+from utils.pdf.get_pages_where_found import get_pages_where_found
 from utils.pdf.get_pdf_content import get_pdf_content_pdfium
 from utils.pdf.get_pdf_content_from_text_ocr import get_pdf_content_from_text_ocr
 from utils.pdf.get_pdf_content_ocr import get_pdf_content_ocr
@@ -638,8 +637,6 @@ class PdfParserAB(PdfParser):
         return {}
 
     def fix_schedule_ab_data(self, extracted_rows: dict) -> dict:
-        # TODO remove 'A/B Schedule A/B Assets Debtor Whetstone Partners, LLP Name;'
-        # TODO remove '. ' from addresses
         new_dict = {}
         for key, value in extracted_rows.items():
             address = value.get("address", "")

@@ -1,18 +1,5 @@
-import json
 import logging
-import re
-from collections import OrderedDict, defaultdict
-from itertools import groupby, islice, zip_longest
-
-import pdfplumber
-from scrapy.utils.project import get_project_settings
-
-from temp_pdf_sampler_d import get_pages_where_found
-from utils.get_parsed_address import get_parsed_address
-from utils.pdf.get_pdf_content import get_pdf_content_fitz, get_pdf_content_pdfium
-from utils.pdf.get_pdf_content_from_text_ocr import get_pdf_content_from_text_ocr
-from utils.pdf.get_pdf_content_ocr import get_pdf_content_ocr
-from utils.pdf.is_text_file import is_text_file
+from collections import defaultdict
 
 
 class PdfParser:
