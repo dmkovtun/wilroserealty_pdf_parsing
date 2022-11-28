@@ -43,6 +43,19 @@ Save received json file as `credentials.json` to './credentials/' directory.
 
 Enable Google Sheets API usage for an app [on this page](https://console.cloud.google.com/apis/library/sheets.googleapis.com).
 
+# Google Sheet requirements
+
+You'll need to add a Script function and use it for getting hyperlink cells links:
+
+>function getHyperlink(cellReference) {
+>  let file = SpreadsheetApp.getActive();
+>  let sheet = file.getSheetByName(" A/B $5MM+ through 11/3");
+>  let range = sheet.getRange(cellReference);
+>  let richText = range.getRichTextValue();
+>  let link = richText.getLinkUrl();
+>  return link;
+>}
+
 # Python installations
 
 Install Python 3.8.1 or upper from [official portal](https://python.org)
