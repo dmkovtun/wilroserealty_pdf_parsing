@@ -31,7 +31,7 @@ Copy `.env.example` file and rename it to `.env`.
 Then specify following settings:
 - `POPPLER_PATH` - provide a path to installed poppler
 - `TESSERACT_PATH` - provide a path to installed tesseract
-- `SPREADSHEET_ID` - value in spreadsheet url after 'https://docs.google.com/spreadsheets/d/`{THIS ID}`/edit#gid='
+- `SPREADSHEET_ID` - value in spreadsheet url after 'https://docs.google.com/spreadsheets/d/`{THIS_ID}`/edit#gid='
 - `SHEET_NAME` - name of sheet to be read and edited
 - `HEADER_RANGE_NAME` - range of sheet header row, like `A1:AW1`
 
