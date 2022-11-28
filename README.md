@@ -1,44 +1,64 @@
 # wilroserealty_pdf_parsing
 
+This app is for enrichment of Google Sheets document with data from https://www.inforuptcy.com/ portal.
 
+Functionality:
+- Google Sheets usage (login, read, edit)
+- Status webpage scraping
+- CSV parsing
+- PDF file download
+- PDF file content reading and parsing
 
+# Installation process (Mac-specific)
+- Install homebrew:
+> /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# Installation process
+- Install tesseract OCR
+For Mac:
+> brew install tesseract
 
+- Install poppler
+For Mac:
+> brew install poppler
+
+Moving apps to `./packages` directory is recommended.
+Then you'll need to set .env variables for installed apps.
+
+# Environment
+
+Copy `.env.example` file and rename it to `.env`
+Then specify following settings:
+- `POPPLER_PATH` - provide a path to installed poppler
+- `TESSERACT_PATH` - provide a path to installed tesseract
+- `SPREADSHEET_ID` - value in spreadsheet url after 'https://docs.google.com/spreadsheets/d/`{ID OF SPREADSHEET}`/edit#gid='
+- `SHEET_NAME` - name of sheet to be read and edited
+- `HEADER_RANGE_NAME` - range of sheet header row, like `A1:AW1`
+
+# Google Sheets credentials and app creation
+
+Perform all steps from the [official instruction](https://developers.google.com/sheets/api/quickstart/python#enable_the_api)
+
+Save received json file as `credentials.json` to './credentials/' directory.
+
+Enable Google Sheets API usage for an app [on this page](https://console.cloud.google.com/apis/library/sheets.googleapis.com).
+
+# Python installations
+
+Install Python 3.8.1 or upper from [official portal](https://python.org)
+
+Install poetry:
+> pip install poetry
+
+Create virtual environment (run following commands from inside `src` directory)
 > poetry install
-
-
 > poetry run playwright install
 
 
+# Usage
+From inside `src` directory, run script `enrich_spreadsheet.py` by double clicking it or
+> python enrich_spreadsheet.py
 
-Add Tesseract-OCR app to 'packages' dir
-Add Poppler app to 'packages' dir
-
-
-
-# TODO REMOVE pypdfium2
-
-
-
-
-# Google API enabling process
-
-https://developers.google.com/sheets/api/quickstart/python#enable_the_api
-
-https://developers.google.com/sheets/api/quickstart/python#authorize_credentials_for_a_desktop_application
-
-TODO
-Need to enable Google Sheets usage for an app.
-https://console.cloud.google.com/apis/library/sheets.googleapis.com?project=wilroserealty-pdf-parsing
-
-# How to use
-
-
-
-> poetry run scrapy enrich_spreadsheet > enrich.log 2>&1
-
-
+Note, that first run will require google account authorization with your default browser.
 
 
 # Business requirements
@@ -56,41 +76,11 @@ Get data from column K (Attorneys): it has a csv file inside and contains same e
 3. 'Schedule A/B' parsing
 Fill 'Notes' column with data from section 9, rows '55.{X}' (where X will change)
 Take only first two columns.
-~ 3.1 (optional) Try to get addresses from data collected in 'Step 3'
+~ 3.1 Try to get addresses from data collected in 'Step 3'
 4. 'Schedule D' parsing (may be tricky)
 In section 'List Creditors Who Have Secured Claims'
 Get "Creditor's Name" from rows '2.{X}'
 Also get "Creditor's mailing address"
 
 (not decided yet): Save to 'Creditors Info' column. Maybe will need two columns
-
-
-
-Required modules:
-- Google Sheets usage (login, read, edit, save)
-- Status webpage scraping
-- (possibly) CSV parsing
-- PDF file download
-- PDF file content reading and parsing
-
-
-
-Code requirements:
-- Extensible
-- (ideally) Processes & downloads data concurrently
-- Runs as easy as possible
-- Easy to setup required dependencies
-- Easy readme file
-- Runs locally on Mac for now
-
-
-
-Future extensibility requirements:
-- Code running on schedule in cloud
-- CRM integration
-- Third-party API integration with possibility to integrate several ones
-
-
-
-
 
