@@ -108,9 +108,7 @@ def get_parsed_address(line_with_address: str) -> str:
 
 
 if __name__ == "__main__":
-    tmp = (
-        "Single Family Residence 6501 Brad Drive Huntington Beach, CA 92642 Value is an estimate from Ticor Online Pro"
-    )
+    tmp = "Single Family Residence 6501 Brad Drive Huntington Beach, CA 92642 Value is an estimate from Ticor Online Pro"
     res = get_parsed_address(tmp)
 
     print(res)
