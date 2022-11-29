@@ -30,7 +30,7 @@ def get_pdf_content_from_text_ocr(
 
     for i in range(len(images)):
         if i not in processable_pages:
-            print(f"Skipping page {i} processing")
+            # print(f"Skipping page {i} processing")
             continue
         _orig_name = basename(filename)
         _full_name = join(PDF_TEMP_DIR_PATH, f"{_orig_name}_page_{str(i)}.jpg")

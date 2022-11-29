@@ -1,3 +1,4 @@
+import logging
 import re
 from collections import OrderedDict, defaultdict
 from itertools import groupby, islice, zip_longest
@@ -13,6 +14,9 @@ from utils.pdf_parsers.pdf_parser import PdfParser
 
 class PdfParserAB(PdfParser):
     cases_by_file_type = defaultdict(list)
+
+    def __init__(self):
+        self.logger = logging.getLogger(__name__.split(".")[-1])
 
     def schedule_a_b_parsing_scan(self, filename: str):
         extracted_rows = {}
@@ -155,7 +159,6 @@ class PdfParserAB(PdfParser):
         extracted_rows = {}
         boundaries = {"left": 35, "bottom": 40, "right": 300, "top": 792 - 40}
         all_text = "   ".join([line for line in get_pdf_content_pdfium(filename, 0, boundaries)])
-        # print(all_text)
         main_pattern = re.compile(r"55\.(.*)5?6?.*Total of Part 9")
         all_text = re.search(main_pattern, all_text).group(1)
         all_text = "55." + all_text
@@ -289,7 +292,6 @@ class PdfParserAB(PdfParser):
             for match in re.finditer(pattern, part):
                 if match:
                     groups = list(match.groups())
-                    print(f"groups {groups}")
                     row_name = groups[0].strip()
                     fee_type = ""  # TODO
                     address = groups[1] or ""
@@ -509,6 +511,20 @@ class PdfParserAB(PdfParser):
 
     # END DEPRECATED
 
+    def is_valid_result(self, value_dict: dict) -> bool:
+        invalid_msgs = ["Is a depreciation schedule available", "OTHER MACHINERY, FIXTURES"]
+        for _, v in value_dict.items():
+            for _, d in v.items():
+                if isinstance(d, list):
+                    d = " ".join(d)
+                self.logger.info(d)
+                self.logger.info(any([a in d for a in invalid_msgs]))
+                if any([a in d for a in invalid_msgs]):
+                    self.logger.info("Found invalid data in parsed dict")
+                    return False
+
+        return True
+
     def schedule_a_b_parsing(self, filename):
         # 3. 'Schedule A/B' parsing
         # Fill 'Notes' column with data from section 9, rows '55.{X}' (where X will change)
@@ -527,7 +543,7 @@ class PdfParserAB(PdfParser):
                 [l for l in get_pdf_content_pdfium(filename, 0, boundaries)]
             ).replace("\n", "")
             type_signature = all_text.split(":")[0][:48]
-            self.logger.info(f"File type signarure '{type_signature}'")
+            self.logger.debug(f"File type signature '{type_signature}'")
             if type_signature == "":
                 return "scan"
 
@@ -577,7 +593,7 @@ class PdfParserAB(PdfParser):
 
         file_type = discover_pdf_type_schedule_ab(filename)
         self.cases_by_file_type[file_type].append(filename)
-        self.logger.info("schedule_a_b_parsing")
+        self.logger.debug("schedule_a_b_parsing")
 
         processing_funcs = {
             # "text": self.schedule_a_b_parsing_text,
@@ -605,17 +621,22 @@ class PdfParserAB(PdfParser):
                     discover_pdf_type_schedule_ab,
                 )
 
-            extracted_rows = self.fix_schedule_ab_data(extracted_rows)
+            extracted_rows = self.fix_result_data(extracted_rows)
             return extracted_rows
         except Exception as err:
             self.logger.error(f"schedule ab file {filename}: parsing failed due to {str(err)}")
         return {}
 
-    def fix_schedule_ab_data(self, extracted_rows: dict) -> dict:
+    def fix_result_data(self, extracted_rows: dict) -> dict:
         new_dict = {}
         for key, value in extracted_rows.items():
             address = value.get("address", "")
             fee_type = value.get("fee_type", "")
+
+            skip_list = ["A/B Schedule A/B Assets"]
+            should_be_skipped = [l in address for l in skip_list]
+            if any(should_be_skipped):
+                continue
 
             if not fee_type:
                 fee_type = ""

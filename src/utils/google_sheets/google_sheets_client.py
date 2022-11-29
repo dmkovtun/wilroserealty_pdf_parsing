@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import logging
 import os.path
 from os import remove
@@ -93,12 +91,12 @@ class GoogleSheetsClient:
             rows_list = result.get("values", [])
 
             if not rows_list:
-                print("No data found.")
+                self.logger.info("No data found.")
                 return []
 
             return rows_list
         except HttpError as err:
-            print(err)
+            self.logger.info(err)
         return []
 
     def load_all_rows(self, column_name_exc: str, is_load_formulas: bool = False) -> List[Any]:

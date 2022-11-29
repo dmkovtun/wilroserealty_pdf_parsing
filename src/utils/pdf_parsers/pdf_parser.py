@@ -30,19 +30,24 @@ class PdfParser:
                 f"Missing processing function for file_type: {file_type}, file {filename}, error: {ke}"
             )
 
-        if not extracted_rows:
+        is_valid_result = self.is_valid_result(extracted_rows)
+        if not extracted_rows or not is_valid_result:
             self.logger.info("Will try to get data with another parsing method")
-            try:
-                funcs = [v for k, v in processing_funcs.items() if k != file_type]
-                # Overcome for empty result
-                for func in funcs:
-                    self.logger.debug(f"Running func: {func}")
+
+            funcs = [v for k, v in processing_funcs.items() if k != file_type]
+            # Overcome for empty result
+            for func in funcs:
+                self.logger.debug(f"Running func: {func.__name__}")
+                try:
                     extracted_rows = func(filename)
+                    is_valid_result = self.is_valid_result(extracted_rows)
+                    if not is_valid_result:
+                        continue
+
                     if extracted_rows:
                         break
-            except Exception:
-                # This file was not expected to be parsed correctly with random func
-                pass
+                except Exception:
+                    pass
 
         return extracted_rows
 
@@ -50,3 +55,6 @@ class PdfParser:
         if isinstance(value, list):
             return " ".join(value)
         return str(value)
+
+    def is_valid_result(self, value_dict: dict) -> bool:
+        return True

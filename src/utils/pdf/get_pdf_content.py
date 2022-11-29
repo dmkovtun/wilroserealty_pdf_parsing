@@ -53,9 +53,7 @@ def get_pdf_content_pdfium(
         for index in range(start_from, len(pdf)):
             page = pdf[index]
             # width, height = page.get_size()
-            # print(f'height {height}')
             textpage = page.get_textpage()
-            # print(boundaries)
             text_part = textpage.get_text_bounded(**boundaries)
             yieldable_data = text_part.splitlines()
             # Attention: objects must be closed in correct order!

@@ -1,8 +1,10 @@
+import cProfile
 import json
 import logging
 import pickle
 from itertools import zip_longest
 from os import remove
+import pstats
 from typing import Iterator, List
 
 import pandas as pd
@@ -141,13 +143,12 @@ class EnrichSpreadsheet(BaseCommand):
     def filter_cases_by_orig_status(self, cases: List[Case]) -> List[Case]:
         skip_statuses_list = [CaseStatus.dismissed.value, CaseStatus.active.value]
 
-        logging.getLogger("case_status_spider").setLevel("INFO")
-        logging.getLogger("scrapy.core.engine").setLevel("INFO")
-
         new_cases = []
         for case in cases:
-            if case.case_status_original in skip_statuses_list:
+            if case.case_status_original:
                 continue
+            # if case.case_status_original in skip_statuses_list:
+            #     continue
             new_cases.append(case)
         return new_cases
 
@@ -169,10 +170,10 @@ class EnrichSpreadsheet(BaseCommand):
                 # NOTE: This is not usual way
                 self.process_files(case)
 
-                if case.enrichment_status != CaseEnrichmentStatus.processing_failed:
-                    self.update_case(case)
-                else:
-                    self.update_case_status(case)
+                # if case.enrichment_status != CaseEnrichmentStatus.processing_failed:
+                #    self.update_case(case)
+                # else:
+                self.update_case(case)
 
                 self.logger.debug(json.dumps(case.__dict__, indent=4, default=str))
 
@@ -180,27 +181,34 @@ class EnrichSpreadsheet(BaseCommand):
         self.args = args
         self.opts = opts
 
+        # profiler = cProfile.Profile()
+        # profiler.enable()
         if opts.debug:
             self._run_debug_processing()
         else:
             self.regular_run()
 
+        # profiler.disable()#.sort_stats('cumtime')
+        # with open('cprofile.txt','w',encoding='utf-8') as outp:
+        #     stats = pstats.Stats(profiler, stream=outp).sort_stats("cumtime")
+        #     stats.print_stats()
+
         self.logger.debug("self.pdf_parser_ab.cases_by_file_type")
         self.logger.debug(
-            json.dumps(dict(self.pdf_parser_ab.cases_by_file_type, indent=4, default=str))
+            json.dumps(dict(self.pdf_parser_ab.cases_by_file_type), indent=4, default=str)
         )
         self.logger.debug("\n\nself.pdf_parser_d.cases_by_file_type")
         self.logger.debug(
-            json.dumps(dict(self.pdf_parser_d.cases_by_file_type, indent=4, default=str))
+            json.dumps(dict(self.pdf_parser_d.cases_by_file_type), indent=4, default=str)
         )
 
     def regular_run(self):
         cases: List[Case] = self.load_cases()
 
-        self.logger.info(f"Received {len(cases)} cases from Google Sheet")
-        self.logger.info("Starting processing case statuses")
+        self.logger.critical(f"Received {len(cases)} cases from Google Sheet")
+        self.logger.critical("Starting processing case statuses")
         # TODO uncomment this
-        # cases = self.filter_cases_by_orig_status(cases)
+        cases = self.filter_cases_by_orig_status(cases)
         processable_cases = [c.case_number for c in cases]
 
         required_cases = []
@@ -427,10 +435,10 @@ class EnrichSpreadsheet(BaseCommand):
                 )
 
             self.process_files(case)
-            if case.enrichment_status != CaseEnrichmentStatus.processing_failed:
-                self.update_case(case)
-            else:
-                self.update_case_status(case)
+            # if case.enrichment_status != CaseEnrichmentStatus.processing_failed:
+            #     self.update_case(case)
+            # else:
+            self.update_case(case)
 
             self.logger.debug(json.dumps(case.__dict__, indent=4, default=str))
 

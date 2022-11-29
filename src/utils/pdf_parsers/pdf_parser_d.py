@@ -51,9 +51,9 @@ class PdfParserD(PdfParser):
             return string.strip()
 
         patterns = [
-            r"2.*for each claim(.*?) .?Cre.?itor.?s Name(.*?)Cre|ad|cit|lor.?s? mail|ting address",
-            r"2\.\d+(.*?) .?Cre.?itor.?s Name(.*?)Credi.?or.?s mail|ting address",
-            r"priority(.*?) .?Cre.?itor.?s Name(.*?)Credi.?or.?s mail|ting address",
+            r"2.*for each claim(.*?) .?Cre.?itor.?.?s Name(.*?)Cre|ad|cit|lor.?.?s? mail|ting address",
+            r"2\.,?\d+(.*?) .?Cre.?itor.?.?s? Name(.*?)Credi.?.?or.?.?s? mail|ting address",
+            r"priority(.*?) .?Cre.?itor.?.?s? Name(.*?)Credi.?.?or.?.?s? mail|ting address",
         ]
         for pattern in patterns:
             regex = re.compile(pattern, re.IGNORECASE | re.MULTILINE)
@@ -61,9 +61,7 @@ class PdfParserD(PdfParser):
             for match in re.finditer(regex, all_text):
                 groups = match.groups()
                 if not groups:
-                    print("no groups found")
                     continue
-                # print(groups)
                 clear_data[ind] = {
                     "name": clear_value(groups[0]),
                     "mailing_address": clear_value(groups[1]),
@@ -121,9 +119,7 @@ class PdfParserD(PdfParser):
             for match in re.finditer(regex, all_text):
                 groups = match.groups()
                 if not groups:
-                    print("no groups found")
                     continue
-                print(groups)
                 clear_data[ind] = {
                     "name": clear_value(groups[0]),
                     "mailing_address": clear_value(groups[1]),
@@ -166,7 +162,6 @@ class PdfParserD(PdfParser):
         return clear_data
 
     def schedule_d_parsing_text2(self, filename: str):
-        self.logger.info(f"schedule_d_parsing_text2")
         extracted_rows = {}
 
         pattern = re.compile(
@@ -293,9 +288,6 @@ class PdfParserD(PdfParser):
                 "mailing_address": match.group(3).strip(),
             }
 
-        if not extracted_rows:
-            return self.schedule_d_parsing_text2(filename)
-
         return extracted_rows
 
     def schedule_d_parsing_text_1(self, filename: str):
@@ -341,7 +333,6 @@ class PdfParserD(PdfParser):
         return extracted_rows
 
     def schedule_d_parsing_text_3(self, filename: str):
-        print(f"schedule_d_parsing_text_3")
         extracted_rows = {}
 
         pattern = re.compile(
@@ -397,35 +388,40 @@ class PdfParserD(PdfParser):
                     "mailing_address": clear_data(match.group(2)),
                 }
             else:
-                print("Failed to parse data")
-        # TODO STILL NOT ALL
+                self.logger.info("Failed to parse data")
 
         return extracted_rows
 
     def schedule_d_parsing_text_4(self, filename: str):
-        # File type signarure 'lem Harbor Power Developme Part 1'
-        # file_type type4
         extracted_rows = {}
         with pdfplumber.open(filename) as pdf:
+            bounding_box = (20, 40, 220, 792 - 40)
             for page_index in range(len(pdf.pages)):
-                curr_page = pdf.pages[page_index]
-                bounding_box = (20, 40, 220, int(curr_page.height) - 40)
-                cropped_page = curr_page.within_bbox(bounding_box, relative=False, strict=True)
+                cropped_page = pdf.pages[page_index].within_bbox(
+                    bounding_box, relative=False, strict=True
+                )
                 pdf_str = cropped_page.extract_text(use_text_flow=True)
 
                 while "_" in pdf_str:
                     pdf_str = pdf_str.replace("_", "")
-                pattern = re.compile(
-                    r"2\.(\d+).?.?Creditor.?s Name(.*?)Creditor.?s mailing address(.*?)Creditor.?s",
-                    re.IGNORECASE | re.MULTILINE,
-                )
+
                 all_text = pdf_str.replace("\n", " ")
-                for match in re.finditer(pattern, all_text):
-                    group_name = match.group(1)
-                    extracted_rows[group_name] = {
-                        "name": match.group(2).strip(),
-                        "mailing_address": match.group(3).strip(),
-                    }
+                patterns = [
+                    r"2\.(\d+).?.?Creditor.?.?s Name(.*?)Creditor.?.?s mailing address(.*?)Creditor.?.?s",
+                    r"2\.(\d)(.+?)Creditor.?.?s mailing address(.+?)Creditor.?.?s",
+                ]
+                for patt in patterns:
+                    pattern = re.compile(
+                        patt,
+                        re.IGNORECASE | re.MULTILINE,
+                    )
+                    for match in re.finditer(pattern, all_text):
+                        groups = [g for g in match.groups() if g.strip()]
+                        group_name = groups[0]
+                        extracted_rows[group_name] = {
+                            "name": groups[1].strip(),
+                            "mailing_address": groups[2].strip(),
+                        }
 
         return extracted_rows
 
@@ -499,6 +495,81 @@ class PdfParserD(PdfParser):
 
         return extracted_rows
 
+    def schedule_d_parsing_text_ocr_mod(self, filename: str):
+        extracted_rows = {}
+
+        # 2.9 | creditor's name                         1  CITIBANK, N.A.                                                  |  Creditor's mailing address  333 W 34TH ST 9TH FLOOR NEW YORK, NY 10001                                        L  Creditor's email address
+        # pattern = re.compile(r"CreditorÆs name?(.*?)CreditorÆs mailing address(.*?)CreditorÆs email", re.DOTALL)
+        # {"left": 45, "bottom": 80, "right": 180, "top": 792 - 40}
+        def crop_image(image):
+            w, h = image.size
+            bounding_box = (50, 20, int(w / 3) - 120, h)  # left, top, right, bottom
+            return image.crop(bounding_box)
+
+        all_text = ""
+        for page_text in get_pdf_content_from_text_ocr(filename, crop_image):
+            # if any(("Part 8" in page_text, "Part 9" in page_text, "Part 10" in page_text)):
+            all_text += page_text
+            #
+        all_text = all_text.replace("\n", " ")
+
+        # all_text = data
+        with open("debug_schedule_d_alt1.txt", "w", encoding="utf-8") as outp:
+            outp.write(all_text)
+
+        def remove_non_ascii(string):
+            return "".join(char for char in string if ord(char) < 128)
+
+        def remove_atrifacts(string):
+            parts = ["  L ", " I ", " | ", "  1 ", "\n", ". "]
+            for p in parts:
+                string = string.replace(p, " ")
+            while "_" in string:
+                string = string.replace("_", " ")
+            while "  " in string:
+                string = string.replace("  ", " ")
+
+            def get_c_or_o(part):
+                return "c/o" if part == "clo" or part == "c1o" else part
+
+            string = " ".join([get_c_or_o(p) for p in string.split(" ")])
+            return remove_non_ascii(string)
+
+        def clear_data(part: str):
+            return remove_atrifacts(part).strip()
+
+        patterns = [
+            r"(:?Creditor.?s names?|for each clair)\s?(.*?)Creditor.?s mailing address(.*?)Creditor.?s",
+            r"2\.(\d+)(.+?)Creditor.?s names?\s?(.*?)Creditor.?s mailing address",
+        ]
+        for patt in patterns:
+            pattern = re.compile(patt, re.IGNORECASE)
+            # TODO this one
+            for index, match in enumerate(re.finditer(pattern, all_text)):
+
+                groups = match.groups()
+                if len(match.groups()) == 3 and groups[2]:
+                    if "Official Form" in clear_data(groups[2]):
+                        continue
+                    data = {
+                        "name": clear_data(groups[1]),
+                        "mailing_address": clear_data(groups[2]),
+                    }
+                    try:
+                        int(groups[0])
+                        extracted_rows[groups[0]] = data
+                    except:
+                        extracted_rows[index + 1] = data
+                elif match.group(1) and match.group(2):
+                    extracted_rows[index + 1] = {
+                        "name": clear_data(match.group(1)),
+                        "mailing_address": clear_data(match.group(2)),
+                    }
+                else:
+                    self.logger.info("Failed to parse data")
+
+        return extracted_rows
+
     def schedule_d_parsing(self, filename: str):
         # 4. 'Schedule D' parsing (may be tricky)
         # In section 'List Creditors Who Have Secured Claims'
@@ -521,6 +592,7 @@ class PdfParserD(PdfParser):
 
             # return all_text[:128].split('2.1')[0]
             type_signature = all_text.split(":")[0][:48]
+            self.logger.debug(f"File type signature '{type_signature}'")
 
             # type_1_files = ["ill in this information to identify the c ebtor "]
             # if any([t in type_signature for t in type_1_files]):
@@ -552,13 +624,14 @@ class PdfParserD(PdfParser):
 
         part = discover_pdf_type_schedule_d(filename)
         self.cases_by_file_type[part].append(filename)
-        self.logger.info("schedule_d_parsing")
+        self.logger.debug("schedule_d_parsing")
 
         processing_funcs = {
-            "text": self.schedule_d_parsing_text_4,
+            "text": self.schedule_d_parsing_text,
             # "type1": self.schedule_d_parsing_text_1,
             # "type2": self.schedule_d_parsing_text_2,
             # "type3": self.schedule_d_parsing_text_3,
+            "ocr_mod": self.schedule_d_parsing_text_ocr_mod,  # Messy files
             "type4": self.schedule_d_parsing_text_4,  # Suppose most general one
             "type_mod": self.schedule_d_parsing_text_type_mod,  # OCR for utf-16 files
             "type4_mod": self.schedule_d_parsing_text_type_4_mod,  # When no 'creditors' text in file
@@ -570,8 +643,73 @@ class PdfParserD(PdfParser):
             extracted_rows = self.parse_pdf_file(
                 filename, processing_funcs, discover_pdf_type_schedule_d
             )
+            try:
+                extracted_rows = self.fix_result_data(extracted_rows)
+            except:
+                pass
             return extracted_rows
         except Exception as err:
 
             self.logger.error(f"schedule d file {filename}: parsing failed due to {str(err)}")
         return {}
+
+    def fix_result_data(self, extracted_rows: dict) -> dict:
+
+        new_dict = {}
+        for key, value in extracted_rows.items():
+            name = value.get("name", "")
+            mailing_address = value.get("mailing_address", "")
+
+            # name fixes
+            patterns = [
+                r"\d?\|?(.*)Creditor’?'?s? Name(.*)Creditor",
+                r"Creditor’?'?s? Name(.*)Creditor’?'?s? mailing address(.*)Creditor",
+                r"(.*)Creditor’?'?s? mailing address",  # TODO FIX PARSING FOR THIS
+                r"(.*)Describ Creditor’?'?s? Name(.*)",
+                r"(.*)Creditor’?'?s?.+locate(.*)",
+                r"\d?\.?\d+(.*)",
+                r"Creditor.?.?s? name(.*)",
+            ]
+            for reg_patt in patterns:
+                patt = re.compile(reg_patt, re.IGNORECASE)
+                is_found = re.search(patt, name)
+                if is_found:
+                    groups = is_found.groups()
+                    name = groups[0]
+                    if len(groups) > 1:
+                        mailing_address = groups[1]
+                    break
+
+            # mailing_address fixes
+            patterns = [
+                r"(.*)Creditor’?'?s? mailing address(.*)",
+                r"(.*)Creditor’?'?s? mailing address",
+            ]
+            for reg_patt in patterns:
+                patt = re.compile(reg_patt, re.IGNORECASE)
+                is_found = re.search(patt, mailing_address)
+                if is_found:
+                    groups = is_found.groups()
+                    mailing_address = groups[0]
+                    if len(groups) > 1:
+                        name = groups[0]
+                        mailing_address = groups[1]
+                    break
+
+            if not name:
+                name = ""
+
+            if not mailing_address:
+                mailing_address = ""
+
+            symbols = ["|", "~", "=", "  "]
+            for field in [name, mailing_address]:
+                for symbol in symbols:
+                    while symbol in field:
+                        field = field.replace(symbol, " ")
+
+            value["name"] = name.strip()
+            value["mailing_address"] = mailing_address.strip()
+            new_dict[key] = value
+
+        return new_dict

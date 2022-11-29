@@ -91,7 +91,6 @@ def get_pdf_content_ocr(
         Iterator[str]: Yields str text for each PDF page.
     """
     image_files = convert_file_to_images_poppler(filename, bounding_func, dpi=dpi)
-    print(image_files)
     for file_path in image_files:
         if is_denoisable:
             file_path = denoise_image(file_path)
