@@ -102,8 +102,7 @@ if IS_SENTRY_ENABLED:
 
 configure_logging()
 if (
-    datetime(*[int(number) for number in USER_AGENT_RELEASE_DATE.split("-")])
-    + timedelta(days=180)
+    datetime(*[int(number) for number in USER_AGENT_RELEASE_DATE.split("-")]) + timedelta(days=180)
     < datetime.now()
 ):
     logging.warning("USER_AGENT is outdated")
@@ -116,9 +115,7 @@ def _process_relative_path(path: str):
 
 
 # Google Sheets API
-CREDENTIALS_PATH = _process_relative_path(
-    os.getenv("CREDENTIALS_PATH", "../credentials")
-)
+CREDENTIALS_PATH = _process_relative_path(os.getenv("CREDENTIALS_PATH", "../credentials"))
 TOKEN_PATH = join(CREDENTIALS_PATH, "token.json")
 CREDENTIALS_PATH = join(CREDENTIALS_PATH, "credentials.json")
 
@@ -135,15 +132,15 @@ logging.getLogger("pdfminer.cmapdb").setLevel("INFO")
 logging.getLogger("pdfminer.pdfpage").setLevel("INFO")
 logging.getLogger("pdfminer.encodingdb").setLevel("INFO")
 logging.getLogger("pdfminer.converter").setLevel("INFO")
+logging.getLogger("case_status_spider").setLevel("INFO")
+logging.getLogger("scrapy.core.engine").setLevel("INFO")
 
 
 # TODO README
 # pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
 
 
-POPPLER_PATH = _process_relative_path(
-    os.getenv("POPPLER_PATH", "../packages/poppler-0.68.0/bin")
-)
+POPPLER_PATH = _process_relative_path(os.getenv("POPPLER_PATH", "../packages/poppler-0.68.0/bin"))
 TESSERACT_PATH = _process_relative_path(
     os.getenv("TESSERACT_PATH", "../packages/Tesseract-OCR/tesseract.exe")
 )
