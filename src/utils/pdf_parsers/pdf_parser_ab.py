@@ -26,20 +26,26 @@ class PdfParserAB(PdfParser):
             bounding_box = (20, 50, int(w / 2), h - 80)  # left, top, right, bottom
             return image.crop(bounding_box)
 
+        save_all = False
         all_pages_text = []
         for l in get_pdf_content_ocr(filename, crop_image):
-            if "55." in l:
+            if save_all:
                 all_pages_text.append(l)
+            if "Part 9:" in l:
+                all_pages_text.append(l)
+                save_all = True
             if "Part 10:" in l:
                 break
         all_text = " ".join(all_pages_text)
-        all_text = all_text.replace("\n", " ")
 
-        pattern = re.compile(r"55\.(\d+)(.*)(:?55|56)", re.MULTILINE | re.IGNORECASE)
+        all_text = all_text.replace("\n", " ")
+        all_text = all_text.replace("§5.", "55.")
+        all_text = re.search(r"(55\.1.*)Total of Part 9", all_text).groups()[0]
+
+        pattern = re.compile(r"55\.(\d+)(.*)(:?55|6)", re.MULTILINE | re.IGNORECASE)
         for match in re.finditer(pattern, all_text):
             groups = match.groups()
             group_name = groups[0]
-
             parts = [p.strip() for p in groups[1].split("   ") if p.strip()]
             address = parts[0]
             if len(parts) > 1:
