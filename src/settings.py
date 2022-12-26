@@ -140,7 +140,7 @@ logging.getLogger("scrapy.core.engine").setLevel("INFO")
 # pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
 
 
-POPPLER_PATH = _process_relative_path(os.getenv("POPPLER_PATH", "../packages/poppler-0.68.0/bin"))
+POPPLER_PATH = _process_relative_path(os.getenv("POPPLER_PATH", ""))
 TESSERACT_PATH = _process_relative_path(
     os.getenv("TESSERACT_PATH", "../packages/Tesseract-OCR/tesseract.exe")
 )
