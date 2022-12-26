@@ -11,23 +11,9 @@ from PIL import Image
 from pytesseract import pytesseract
 from scrapy.utils.project import get_project_settings
 
-from utils.pdf.denoise_image import denoise_image
-
-# from PyPDF2 import PdfReadError
-
-
-# TODO poetry add pytesseract
-# TODO poetry add pikepdf
-# TODO sudo apt-get install tesseract-ocr
-
-# pytesseract.pytesseract.tesseract_cmd = "C:/Program Files/Tesseract-OCR/tesseract.exe"
-
+#from utils.pdf.denoise_image import denoise_image
 
 # https://github.com/UB-Mannheim/tesseract/wiki
-
-# from .remove_empty_lines import remove_empty_lines
-
-# TODO make this in a more usable way
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +78,8 @@ def get_pdf_content_ocr(
     """
     image_files = convert_file_to_images_poppler(filename, bounding_func, dpi=dpi)
     for file_path in image_files:
-        if is_denoisable:
-            file_path = denoise_image(file_path)
+        # if is_denoisable:
+        #    file_path = denoise_image(file_path)
         yield from _generate_text_from_images(file_path)
 
 

@@ -1,10 +1,9 @@
-from os import getcwd, makedirs, remove
-from os.path import basename, dirname, exists, join
-from typing import Iterator, Optional
+from os import makedirs, remove
+from os.path import basename, exists, join
+from typing import Iterator
 
 import pytesseract
 from pdf2image import convert_from_path
-from pikepdf import Pdf, PdfImage
 from PIL import Image
 from scrapy.utils.project import get_project_settings
 
