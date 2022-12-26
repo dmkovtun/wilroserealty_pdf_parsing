@@ -1,5 +1,7 @@
 # wilroserealty_pdf_parsing
 
+# Overview
+
 This app is for enrichment of Google Sheets document with data from https://www.inforuptcy.com/ portal.
 
 Functionality:
@@ -8,74 +10,6 @@ Functionality:
 - CSV parsing
 - PDF file download
 - PDF file content reading and parsing
-
-# Installation process (Mac-specific)
-- Install homebrew:
-> /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-- Install tesseract OCR
-For Mac:
-> brew install tesseract
-
-- Install poppler
-For Mac:
-> brew install poppler
-
-Moving apps to `./packages` directory is recommended.
-Then you'll need to set .env variables for installed apps.
-
-# Environment
-
-Copy `.env.example` file and rename it to `.env`.
-
-Then specify following settings:
-- `POPPLER_PATH` - provide a path to installed poppler
-- `TESSERACT_PATH` - provide a path to installed tesseract
-- `SPREADSHEET_ID` - value in spreadsheet url after 'https://docs.google.com/spreadsheets/d/`{THIS_ID}`/edit#gid='
-- `SHEET_NAME` - name of sheet to be read and edited
-- `HEADER_RANGE_NAME` - range of sheet header row, like `A1:AW1`
-
-# Google Sheets credentials and app creation
-
-Perform all steps from the [official instruction](https://developers.google.com/sheets/api/quickstart/python#enable_the_api)
-
-Save received json file as `credentials.json` to './credentials/' directory.
-
-Enable Google Sheets API usage for an app [on this page](https://console.cloud.google.com/apis/library/sheets.googleapis.com).
-
-# Google Sheet requirements
-
-You'll need to add a Script function and use it for getting hyperlink cells links:
-
->function getHyperlink(cellReference) {
->  let file = SpreadsheetApp.getActive();
->  let sheet = file.getSheetByName(" A/B $5MM+ through 11/3");
->  let range = sheet.getRange(cellReference);
->  let richText = range.getRichTextValue();
->  let link = richText.getLinkUrl();
->  return link;
->}
-
-# Python installations
-
-Install Python 3.8.1 or upper from [official portal](https://python.org)
-
-Install poetry:
-> pip install poetry
-
-Create virtual environment (run following commands from inside `src` directory)
-> poetry install
-
-Install playwright browsers (required):
-> poetry run playwright install
-
-
-# Usage
-From inside `src` directory, run script `enrich_spreadsheet.py` by double clicking it or running from terminal:
-> python enrich_spreadsheet.py
-
-Note, that first run will require google account authorization with your default browser.
-
 
 # Business requirements
 
@@ -98,3 +32,62 @@ In section 'List Creditors Who Have Secured Claims'
 Get "Creditor's Name" from rows '2.{X}'
 Also get "Creditor's mailing address"
 Save to 'Creditors Info' column.
+
+# Environment setup
+
+Copy `.env.example` file and rename it to `.env`.
+
+Then specify following settings:
+- `SPREADSHEET_ID` - value in spreadsheet url after 'https://docs.google.com/spreadsheets/d/`{THIS_ID}`/edit'
+- `SHEET_NAME` - name of sheet to be read and edited
+- `HEADER_RANGE_NAME` - range of sheet header row, like `A1:AW1`
+
+# Google Sheets credentials and app creation
+
+1. Perform all steps from the [official Google instruction](https://developers.google.com/sheets/api/quickstart/python#enable_the_api)
+
+2. Save received json file as `credentials.json` to `./data/credentials/` directory.
+
+3. Enable Google Sheets API usage for an app [on this page](https://console.cloud.google.com/apis/library/sheets.googleapis.com).
+
+# Google Sheet requirements
+
+Kindly check [example spreadsheet with supported columns](https://docs.google.com/spreadsheets/d/1SgRASrGHVmsoAryeCOVn88wO54K7roJYPCjJb2rQkpc/edit#gid=2088411805).
+
+Note, that column order does not affect script running. Column names affect it though.
+
+If you need to change any column name, stop docker container and then modify spreadsheet.
+
+You'll need to add a Script function and use it for getting hyperlink cells links:
+
+>function getHyperlink(cellReference) {
+>  let file = SpreadsheetApp.getActive();
+>  let sheet = file.getSheetByName("`NAME OF REQUIRED SHEET`");
+>  let range = sheet.getRange(cellReference);
+>  let richText = range.getRichTextValue();
+>  let link = richText.getLinkUrl();
+>  return link;
+>}
+
+# Installation process
+
+1. [Install Python 3.8.6 or upper](https://www.python.org/downloads/).
+
+2. Install [Docker application](https://docs.docker.com/desktop/install/mac-install/)
+
+3. From project directory run in terminal:
+
+> python setup.py
+
+# Usage
+
+After previous steps, you can use Docker UI for starting/stopping the app.
+
+# Runtime error solving
+
+Sometimes Google authentication token expires.
+If app is not running as expected, try resetting everything by running:
+
+> python setup.py
+
+If this doesn`t help, feel free to contact.
