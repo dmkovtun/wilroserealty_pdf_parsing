@@ -1,0 +1,24 @@
+version: '3'
+networks:
+  general:
+    driver: bridge
+volumes:
+  mysql:
+    driver: local
+services:
+  ubuntu:
+    env_file: .env
+    build:
+      context: ./docker/ubuntu
+    volumes:
+      - './src:/var/app/src'
+      - './data:/var/app/data'
+      - '.env:/var/app/src/.env'
+      - './pm2:/var/app/pm2'
+      - './logs:/var/app/logs'
+
+    extra_hosts:
+      - 'dockerhost:${DOCKER_HOST_IP}'
+    tty: true
+    networks:
+      - general
