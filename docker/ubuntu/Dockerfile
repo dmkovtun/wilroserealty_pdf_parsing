@@ -8,21 +8,13 @@ SHELL ["/bin/bash", "-l", "-c"]
 ARG TZ=UTC
 ENV TZ ${TZ}
 
-RUN apt-get update && apt-get install -y curl wget gnupg2 systemd gettext-base
-RUN set -eu && \
-    wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.35.3/install.sh | bash && \
-    export NVM_DIR="$HOME/.nvm" && \
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" && \
-    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion" && \
-    nvm install 14.5.0 && \
-    npm install -g pm2
-
-RUN apt-get update && apt-get install -y software-properties-common gcc && \
-    add-apt-repository -y ppa:deadsnakes/ppa
-
-RUN apt-get update && apt-get install -y python3.9 python3-distutils python3-pip python3-apt
-
+RUN apt-get update && apt-get install -y curl wget
+RUN apt-get update && apt-get install -y python3.9 python3-pip python-is-python3
 RUN python3 -m pip install --upgrade pip && python3 -m pip install poetry
+
+RUN apt install -y tesseract-ocr imagemagick poppler-utils
+# Playwright requires this
+RUN apt install -y libatk1.0-0 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2 libatspi2.0-0 libwayland-client0
 
 
 COPY setup.sh /usr/local/bin/
