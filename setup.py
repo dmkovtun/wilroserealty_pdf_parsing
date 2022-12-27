@@ -13,11 +13,12 @@ def run_cmds(cmds):
     for cmd in cmds:
         stream = popen(cmd)
         output = stream.read()
+        print(output)
 
 
 run_cmds(["poetry install", "poetry run python get_token.py"])
 print("Login completed successfully.")
-
+print("Building Docker container..")
 chdir(current_dir)
 run_cmds(["docker-compose build", "docker-compose up -d"])
 print("Docker image setup is completed.")
