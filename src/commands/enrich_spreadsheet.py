@@ -219,12 +219,12 @@ class EnrichSpreadsheet(BaseCommand):
         cases = required_cases
 
         self.logger.info(f"Will process {len(cases)} cases after filtering by status")
-        self.process_cases(cases)
 
         if not cases:
             self.logger.info("Will skip next steps, as cases were filtered out")
             return
 
+        self.process_cases(cases)
         reactor.run()  # type: ignore
         # TODO REMOVE
         # with open("debug_cases_schedule_d______.pickle", "wb") as handle:
