@@ -10,8 +10,8 @@ from pikepdf import Pdf, PdfImage
 from PIL import Image
 from pytesseract import pytesseract
 from scrapy.utils.project import get_project_settings
-
-#from utils.pdf.denoise_image import denoise_image
+from pikepdf.models.image import HifiPrintImageNotTranscodableError
+# from utils.pdf.denoise_image import denoise_image
 
 # https://github.com/UB-Mannheim/tesseract/wiki
 
@@ -23,7 +23,7 @@ POPPLER_PATH = settings.get("POPPLER_PATH")
 TESSERACT_PATH = settings.get("TESSERACT_PATH")
 PDF_TEMP_DIR_PATH = str(settings.get("PDF_TEMP_DIR_PATH"))
 
-pytesseract.tesseract_cmd = TESSERACT_PATH
+#pytesseract.tesseract_cmd = TESSERACT_PATH
 
 
 def convert_file_to_images_pike(filename: str) -> List[str]:
@@ -35,7 +35,7 @@ def convert_file_to_images_pike(filename: str) -> List[str]:
             image = PdfImage(raw_image)
             fname = f"{filename}-page{i:03}-img{j:03}"
             file_path = join(PDF_TEMP_DIR_PATH, fname)
-            from pikepdf.models.image import HifiPrintImageNotTranscodableError
+
 
             try:
                 file_path = image.extract_to(fileprefix=file_path)
@@ -84,8 +84,11 @@ def get_pdf_content_ocr(
 
 
 def _generate_text_from_images(file_path: str) -> Iterator[str]:
+    # TODO PROFILE 1 PDF processing with threaded solution (multiple instances)
     data = pytesseract.image_to_string(
         file_path, lang="eng", config="-c preserve_interword_spaces=1"
+        # TODO tessedit_do_invert=0
+        #  engine="fast"
     )
     os.remove(file_path)
     yield data

@@ -31,15 +31,17 @@ class PdfParserAB(PdfParser):
         for l in get_pdf_content_ocr(filename, crop_image):
             if save_all:
                 all_pages_text.append(l)
-            if "Part 9:" in l:
+            if "Total of Part 8" in l:
                 all_pages_text.append(l)
                 save_all = True
-            if "Part 10:" in l:
+            if "Total of Part 9" in l:
                 break
         all_text = " ".join(all_pages_text)
 
-        all_text = all_text.replace("\n", " ")
-        all_text = all_text.replace("§5.", "55.")
+        replacables = [("\n", " "), ('§5.','55.'), ('65.','55.')]
+        for a, b in replacables:
+            all_text = all_text.replace(a, b)
+
         all_text = re.search(r"(55\.1.*)Total of Part 9", all_text).groups()[0]
 
         pattern = re.compile(r"55\.(\d+)(.*)(:?55|6)", re.MULTILINE | re.IGNORECASE)
